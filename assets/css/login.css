@@ -1,0 +1,198 @@
+/* Dangpanan/assets/css/login.css - High-Visibility Protocol Theme */
+
+.auth-bg {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  margin: 0;
+  background:
+    linear-gradient(rgba(0, 0, 0, 0.9), rgba(0, 0, 0, 0.9)),
+    url("../img/EARTH2.jpg") no-repeat center center;
+  background-size: cover;
+  background-attachment: fixed;
+  font-family: "Inter", sans-serif;
+}
+
+/* Increased Card Size (Desktop) */
+.login-card {
+  width: 100%;
+  max-width: 480px;
+  padding: 3.5rem;
+  box-sizing: border-box;
+  background: rgba(24, 24, 27, 0.95);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 2rem;
+  text-align: center;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8);
+}
+
+.auth-icon {
+  margin-bottom: 1.5rem;
+}
+
+.auth-logo {
+  width: 70px;
+  height: 70px;
+  object-fit: contain;
+}
+
+.auth-title {
+  margin: 0.5rem 0;
+  color: white;
+  font-size: 2rem;
+  font-weight: 900;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+}
+
+.subtitle {
+  margin-bottom: 2.5rem;
+  color: #a1a1aa;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+/* Larger Inputs (Desktop) */
+.input-field {
+  width: 100%;
+  height: 56px;
+  padding: 0 1.25rem;
+  margin: 12px 0;
+  box-sizing: border-box;
+  background: #18181b;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.75rem;
+  color: white;
+  font-size: 1.1rem;
+  transition: all 0.2s ease;
+}
+
+.input-field:focus {
+  outline: none;
+  border-color: #ef4444;
+  background: #212124;
+  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.15);
+}
+
+/* Powerful Action Button */
+.btn-auth {
+  width: 100%;
+  margin-top: 1.5rem;
+  padding: 18px;
+  background: #ef4444;
+  color: white;
+  border: none;
+  border-radius: 1rem;
+  font-weight: 800;
+  font-size: 1.1rem; /* Standard size for Desktop */
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-auth:hover {
+  background: #dc2626;
+  transform: translateY(-3px);
+  box-shadow: 0 10px 20px -5px rgba(239, 68, 68, 0.4);
+}
+
+.btn-auth:active {
+  transform: scale(0.97);
+}
+
+.auth-footer {
+  margin-top: 2.5rem;
+}
+
+.signup-link {
+  color: #a1a1aa;
+  font-size: 1rem;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.back-link-container {
+  margin-top: 1.25rem;
+}
+
+.highlight {
+  color: #ef4444;
+  font-weight: 700;
+}
+
+/* ================= TABLET ADJUSTMENTS (Max Width: 768px) ================= */
+@media screen and (max-width: 768px) {
+  .login-wrapper {
+    padding: 1rem;
+  }
+  .login-card {
+    padding: 2rem 1.75rem;
+    width: 95%;
+    max-width: 420px;
+  }
+  .auth-title {
+    font-size: 1.75rem;
+  }
+}
+
+/* ================= MOBILE ADJUSTMENTS (Max Width: 480px) ================= */
+@media screen and (max-width: 480px) {
+  /* 1. Compact Card Layout */
+  .login-card {
+    padding: 2rem 1.5rem; /* Tighter padding */
+    width: 90%;
+    max-width: 360px; /* Limits width so it doesn't look stretched */
+    border-radius: 1.5rem;
+  }
+
+  /* 2. Smaller Logo */
+  .auth-logo {
+    width: 50px;
+    height: 50px;
+  }
+
+  .auth-icon {
+    margin-bottom: 1rem;
+  }
+
+  /* 3. Smaller Title */
+  .auth-title {
+    font-size: 1.5rem;
+    letter-spacing: 2px;
+  }
+
+  .subtitle {
+    font-size: 0.75rem;
+    margin-bottom: 1.5rem;
+  }
+
+  /* 4. Compact Inputs */
+  .input-field {
+    height: 46px;
+    font-size: 1rem;
+    margin: 8px 0;
+  }
+
+  /* 5. Compact Button & Font Fix */
+  .btn-auth {
+    padding: 14px;
+
+    font-size: 0.7rem;
+
+    margin-top: 1rem;
+    border-radius: 0.75rem;
+  }
+
+  /* 6. Footer Adjustments */
+  .auth-footer {
+    margin-top: 1.5rem;
+  }
+
+  .signup-link {
+    font-size: 0.9rem;
+  }
+}

@@ -1,0 +1,649 @@
+/* Dangpanan/assets/css/registration.css - Red & Black Protocol Theme */
+
+:root {
+  /* High-contrast color palette */
+  --primary-red: #ef4444;
+  --primary-red-hover: #dc2626;
+  --bg-black: #09090b;
+  --surface-dark: rgba(24, 24, 27, 0.95);
+  --success-green: #22c55e;
+  --text-muted: #a1a1aa;
+  --border-dark: rgba(255, 255, 255, 0.1);
+}
+
+/* 1. Background and Layout */
+body.reg-bg-gradient {
+  background:
+    linear-gradient(rgba(0, 0, 0, 0.9), rgba(0, 0, 0, 0.9)),
+    url("../img/EARTH2.jpg");
+  background-size: cover;
+  background-attachment: fixed;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center; /* DESKTOP: Keeps it centered */
+  padding: 2rem 1.25rem;
+  font-family: "Inter", sans-serif;
+  margin: 0;
+}
+
+.registration-container {
+  width: 100%;
+  max-width: 500px;
+}
+
+/* 2. Header and Icon Box */
+.auth-header {
+  text-align: center;
+  color: white;
+  margin-bottom: 2rem;
+}
+
+.icon-box {
+  width: 64px;
+  height: 64px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1rem;
+  color: var(--primary-red);
+}
+
+.auth-header h1 {
+  font-size: 1.5rem;
+  font-weight: 800;
+  margin-bottom: 0.5rem;
+  line-height: 1.2;
+}
+.auth-header p {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+/* 3. Modern Stepper */
+.stepper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+  padding: 0 1rem;
+}
+
+.step {
+  width: 48px;
+  height: 48px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-dark);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.4);
+  position: relative;
+  z-index: 2;
+  transition: all 0.3s ease;
+}
+
+.step.active {
+  background: var(--primary-red);
+  color: white;
+  transform: scale(1.1);
+  box-shadow: 0 0 15px rgba(239, 68, 68, 0.4);
+}
+
+.step.completed {
+  background: var(--success-green);
+  color: white;
+}
+
+/* 4. Glassmorphic Card Container */
+.glass-card {
+  background: var(--surface-dark);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--border-dark);
+  border-radius: 1.5rem;
+  padding: 2.5rem;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+}
+
+.form-step {
+  display: none;
+}
+.form-step.active {
+  display: block;
+  animation: slideIn 0.4s ease-out;
+}
+
+/* 5. Inputs and Form Elements */
+h2 {
+  font-size: 1.25rem;
+  font-weight: 800;
+  margin-bottom: 0.5rem;
+  color: #ffffff;
+}
+.form-step p {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  margin-bottom: 1.5rem;
+}
+
+label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+
+/* Grid for Step 1 Password Fields */
+.password-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+  margin-bottom: 1.25rem;
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  height: 48px;
+  padding: 0.75rem 1rem;
+  background: #18181b;
+  border: 1px solid var(--border-dark);
+  border-radius: 0.75rem;
+  margin-bottom: 1.25rem;
+  font-size: 1rem;
+  color: white;
+  transition: border-color 0.2s;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--primary-red);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
+}
+
+/* 6. Identity Verification Upload Area */
+.upload-area {
+  border: 2px dashed var(--border-dark);
+  border-radius: 1rem;
+  padding: 2.5rem;
+  text-align: center;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.02);
+  margin-bottom: 1.5rem;
+  transition: background 0.2s;
+}
+
+.upload-area:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--primary-red);
+}
+.upload-area i {
+  font-size: 2.5rem;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+
+/* 7. Action Buttons & Grouping */
+.button-group {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.btn-continue,
+.btn-complete {
+  flex: 2; /* Primary action is wider */
+  height: 48px;
+  background: var(--primary-red);
+  color: white;
+  border: none;
+  border-radius: 0.75rem;
+  font-weight: 700;
+  font-size: 0.95rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition:
+    background 0.2s,
+    transform 0.2s;
+}
+
+.btn-continue:hover {
+  background: var(--primary-red-hover);
+  transform: translateY(-2px);
+}
+
+.btn-back {
+  flex: 1; /* Back button is narrower */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  background: transparent;
+  border: 1px solid var(--border-dark);
+  color: white;
+  border-radius: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-back:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--text-muted);
+}
+
+/* 8. Password Field Wrapper */
+.password-field-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.eye-toggle {
+  position: absolute;
+  right: 12px;
+  top: 38px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s ease;
+}
+
+.eye-toggle:hover {
+  color: var(--primary-red);
+}
+
+/* Step 4 OTP Styling */
+.otp-input {
+  text-align: center;
+  font-size: 2rem;
+  letter-spacing: 10px;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* ================= TABLET ADJUSTMENTS (Max Width: 768px) ================= */
+@media screen and (max-width: 768px) {
+  .glass-card {
+    padding: 2rem 1.75rem;
+    width: 92%;
+  }
+  .registration-wrapper {
+    padding: 1.5rem 1rem;
+  }
+  .name-grid {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .form-section-title {
+    font-size: 1rem;
+  }
+}
+
+/* ================= MOBILE ADJUSTMENTS (Max Width: 480px) ================= */
+@media screen and (max-width: 480px) {
+  /* 1. Body Layout - "Medium" Spacing */
+  body.reg-bg-gradient {
+    align-items: flex-start; /* MOBILE ONLY: Prevents vertical squishing */
+    /* Increased side padding to 2rem (~32px) to squeeze the card narrower (Medium look) */
+    padding: 2rem;
+  }
+
+  .registration-container {
+    width: 100%;
+    margin-top: 10px;
+    margin-bottom: 20px; /* Space for scrolling */
+  }
+
+  /* 2. Resize Header */
+  .auth-header h1 {
+    font-size: 1.35rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .auth-header p {
+    font-size: 0.85rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .icon-box {
+    width: 50px;
+    height: 50px;
+    margin-bottom: 0.75rem;
+  }
+
+  /* 3. Adjust Stepper */
+  .stepper {
+    padding: 0;
+    gap: 8px;
+    margin-bottom: 1.5rem;
+  }
+
+  .step {
+    width: 40px;
+    height: 40px;
+    font-size: 0.9rem;
+  }
+
+  /* 4. Card Styling */
+  .glass-card {
+    padding: 1.5rem;
+    width: 100%;
+    border-radius: 1rem;
+  }
+
+  /* 5. Typography */
+  h2 {
+    font-size: 1.1rem;
+  }
+
+  .form-step p {
+    margin-bottom: 1rem;
+  }
+
+  /* 6. Inputs */
+  .password-grid {
+    grid-template-columns: 1fr; /* Stack passwords */
+    gap: 0;
+  }
+
+  input,
+  select,
+  textarea {
+    height: 44px;
+    font-size: 0.95rem;
+    margin-bottom: 1rem;
+  }
+
+  .eye-toggle {
+    top: 35px;
+  }
+
+  /* 7. Buttons */
+  .button-group {
+    gap: 0.75rem;
+  }
+
+  .btn-continue,
+  .btn-back,
+  .btn-complete {
+    height: 44px;
+    font-size: 0.9rem;
+  }
+}
+
+/* ── Name grid (First | M.I. | Last) ── */
+.name-grid {
+  display: grid;
+  grid-template-columns: 1fr 70px 1fr;
+  gap: 12px;
+  margin-bottom: 0;
+}
+.name-field { display: flex; flex-direction: column; }
+.name-field label { margin-bottom: 0.4rem; }
+.name-field input { margin-bottom: 1.25rem; }
+
+/* ── Stepper connecting lines ── */
+.step-line {
+  flex: 1;
+  height: 2px;
+  background: rgba(255,255,255,0.1);
+  margin: 0 4px;
+  align-self: center;
+}
+
+/* ── Required asterisk ── */
+.req { color: #ef4444; margin-left: 2px; }
+
+/* ── Emergency section header ── */
+.emergency-section h3 {
+  font-size: .85rem;
+  font-weight: 700;
+  color: #a1a1aa;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  margin: .5rem 0 1rem;
+  padding-top: .75rem;
+  border-top: 1px solid rgba(255,255,255,.08);
+}
+
+/* ── Alert banners ── */
+.reg-alert {
+  border-radius: .75rem;
+  padding: .85rem 1.1rem;
+  font-size: .85rem;
+  font-weight: 600;
+  margin-bottom: 1.25rem;
+}
+.reg-alert-error {
+  background: rgba(239,68,68,.1);
+  border: 1px solid rgba(239,68,68,.3);
+  color: #fca5a5;
+}
+
+/* ── Field-level validation ── */
+.input-error {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 3px rgba(239,68,68,.2) !important;
+}
+.field-error-msg {
+  display: block;
+  font-size: .78rem;
+  color: #f87171;
+  margin-top: -1rem;
+  margin-bottom: .85rem;
+}
+
+/* ── Upload area enhancements ── */
+.upload-area {
+  transition: border-color .2s, background .2s;
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+#uploadPreview { text-align: center; width: 100%; }
+
+/* ── Mobile: stack name fields ── */
+@media screen and (max-width: 480px) {
+  .name-grid {
+    grid-template-columns: 1fr 60px;
+    grid-template-rows: auto auto;
+  }
+  .name-field:first-child { grid-column: 1 / -1; }
+}
+
+/* ══════════════════════════════════════
+   OTP STEP 4 STYLES
+   ══════════════════════════════════════ */
+
+/* Phone number display pill */
+.otp-phone-display {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: .75rem;
+  padding: .75rem 1rem;
+  margin-bottom: 1.25rem;
+  color: #fff;
+  font-size: .95rem;
+  font-weight: 600;
+}
+.otp-phone-display i { width: 18px; height: 18px; color: #a1a1aa; flex-shrink: 0; }
+
+/* Demo notice banner */
+.otp-demo-notice {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  background: rgba(251,191,36,.08);
+  border: 1px solid rgba(251,191,36,.3);
+  border-radius: .75rem;
+  padding: .85rem 1rem;
+  margin-bottom: 1.25rem;
+  font-size: .85rem;
+  color: #fde68a;
+}
+.otp-demo-notice i { width: 18px; height: 18px; flex-shrink: 0; }
+.otp-demo-code {
+  display: inline-block;
+  font-size: 1.4rem;
+  font-weight: 900;
+  letter-spacing: .2em;
+  color: #fbbf24;
+  margin-left: .25rem;
+}
+
+/* Send OTP button */
+.btn-send-otp {
+  width: 100%;
+  height: 52px;
+  background: var(--primary-red);
+  color: #fff;
+  border: none;
+  border-radius: .75rem;
+  font-weight: 700;
+  font-size: 1rem;
+  font-family: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .5rem;
+  transition: background .2s, transform .15s;
+  margin-bottom: 1rem;
+}
+.btn-send-otp:hover:not(:disabled)  { background: var(--primary-red-hover); transform: translateY(-1px); }
+.btn-send-otp:disabled { opacity: .6; cursor: not-allowed; }
+.btn-send-otp i { width: 18px; height: 18px; }
+
+/* 6 individual OTP boxes */
+.otp-boxes {
+  display: flex;
+  gap: .5rem;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+.otp-box {
+  width: 48px !important;
+  height: 56px !important;
+  padding: 0 !important;
+  text-align: center;
+  font-size: 1.5rem !important;
+  font-weight: 800;
+  background: #18181b;
+  border: 1px solid rgba(255,255,255,.15);
+  border-radius: .6rem;
+  color: #fff;
+  caret-color: var(--primary-red);
+  margin-bottom: 0 !important;
+  transition: border-color .2s, box-shadow .2s;
+}
+.otp-box:focus {
+  outline: none;
+  border-color: var(--primary-red);
+  box-shadow: 0 0 0 3px rgba(239,68,68,.25);
+}
+
+/* Shake animation for wrong code */
+@keyframes shake {
+  0%,100% { transform: translateX(0); }
+  20%     { transform: translateX(-8px); }
+  40%     { transform: translateX(8px); }
+  60%     { transform: translateX(-6px); }
+  80%     { transform: translateX(6px); }
+}
+.shake { animation: shake 0.45s ease; }
+
+/* Countdown timer */
+.otp-timer {
+  text-align: center;
+  font-size: .82rem;
+  color: #a1a1aa;
+  margin-bottom: .75rem;
+}
+#otpCountdown {
+  font-weight: 700;
+  color: #22c55e;
+  transition: color .3s;
+}
+
+/* Resend link */
+.otp-resend {
+  text-align: center;
+  font-size: .82rem;
+  color: #a1a1aa;
+  margin-bottom: .75rem;
+}
+.btn-resend {
+  background: none;
+  border: none;
+  color: var(--primary-red);
+  font-weight: 700;
+  cursor: pointer;
+  font-size: .82rem;
+  text-decoration: underline;
+  padding: 0;
+}
+.btn-resend:hover { color: var(--primary-red-hover); }
+
+/* Verified badge */
+.otp-verified-badge {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  background: rgba(34,197,94,.1);
+  border: 1px solid rgba(34,197,94,.3);
+  border-radius: .75rem;
+  padding: 1rem 1.25rem;
+  color: #86efac;
+  font-weight: 700;
+  font-size: 1rem;
+  margin-bottom: .5rem;
+}
+.otp-verified-badge i { width: 22px; height: 22px; }
+
+/* Submit ready state */
+.btn-complete--ready {
+  background: var(--success-green) !important;
+  box-shadow: 0 4px 20px rgba(34,197,94,.3) !important;
+}
+
+/* Spin animation for loader */
+.spin-icon { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.otp-error { text-align: center; margin-top: .25rem; }
+
+/* ── Responsive OTP boxes on mobile ── */
+@media screen and (max-width: 420px) {
+  .otp-box { width: 40px !important; height: 48px !important; font-size: 1.25rem !important; }
+  .otp-boxes { gap: .35rem; }
+}
