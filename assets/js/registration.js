@@ -137,13 +137,6 @@ async function sendOtp() {
             document.getElementById('otpSendSection').style.display = 'none';
             document.getElementById('otpInputSection').style.display = 'block';
 
-            // Demo notice: shows the generated code on screen
-            if (data.demo_code) {
-                const notice = document.getElementById('otpDemoNotice');
-                notice.style.display = 'flex';
-                document.getElementById('otpDemoCode').textContent = data.demo_code;
-            }
-
             // Start countdown
             startCountdown(data.ttl || 300);
 

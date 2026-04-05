@@ -229,11 +229,11 @@ function runNavigationMode(requestId) {
       const nameEl = document.getElementById("hudShelterName");
       if (nameEl) nameEl.textContent = req.shelter_name;
 
-      // Show call button if contact exists
-      const callBtn = document.getElementById("btnCallShelter");
-      if (callBtn && req.contact_number) {
-        callBtn.href = `tel:${req.contact_number}`;
-        callBtn.style.display = "flex";
+      // Show chat button
+      const chatBtn = document.getElementById("btnChatShelter");
+      if (chatBtn) {
+        chatBtn.href = `index.php?route=chat&request_id=${requestId}`;
+        chatBtn.style.display = "flex";
       }
 
       // Init map centered on shelter while waiting for user GPS

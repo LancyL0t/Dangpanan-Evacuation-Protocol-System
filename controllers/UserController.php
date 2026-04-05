@@ -66,14 +66,15 @@ class UserController extends BaseController {
         $lastName      = trim($_POST['last_name']      ?? '');
 
         $userData = [
-            'first_name'     => $firstName,
-            'middle_initial' => $middleInitial,
-            'last_name'      => $lastName,
-            'email'          => $email,
-            'password'       => $_POST['password'],
-            'phone_number'   => trim($_POST['phone_number'] ?? ''),
-            'role'           => 'Citizen',
-            'gov_id_url'     => $govIdUrl,
+            'first_name'        => $firstName,
+            'middle_initial'    => $middleInitial,
+            'last_name'         => $lastName,
+            'email'             => $email,
+            'password'          => $_POST['password'],
+            'phone_number'      => trim($_POST['phone_number'] ?? ''),
+            'emergency_contact' => trim($_POST['emergency_contact_phone'] ?? ''),
+            'role'              => 'Citizen',
+            'gov_id_url'        => $govIdUrl,
         ];
 
         if ($this->userModel->register($userData)) {
@@ -102,6 +103,9 @@ class UserController extends BaseController {
             SessionManager::set('name', $user->getFirstName());
             SessionManager::set('role', $user->getRole());
             
+            // Clear any lingering attempts
+            unset($_SESSION['login_attempt_email']);
+
             if ($user->getRole() === 'Admin') {
                 $this->redirect('admin_landing');
             } else {
@@ -109,6 +113,8 @@ class UserController extends BaseController {
                 $this->redirect('home', 'success', true);
             }
         } else {
+            // Save the attempted email so we can pre-fill it for them
+            $_SESSION['login_attempt_email'] = filter_var($_POST['email'] ?? '', FILTER_SANITIZE_EMAIL);
             $this->redirect('login', '1');
         }
     }
@@ -174,6 +180,7 @@ class UserController extends BaseController {
             ];
 
             if ($this->userModel->register($userData)) {
+                $this->logAction($this->userModel->getDb(), "Admin created user: {$data['first_name']} {$data['last_name']} ({$data['email']})");
                 echo json_encode(['success' => true, 'message' => 'User created successfully']);
             } else {
                 echo json_encode(['success' => false, 'message' => 'Failed to create user']);
@@ -204,6 +211,9 @@ class UserController extends BaseController {
 
         try {
             if ($this->userModel->update($data['user_id'], $data)) {
+                $u = $this->userModel->getById($data['user_id']);
+                $name = $u ? $u->getFirstName() . ' ' . $u->getLastName() : "ID #{$data['user_id']}";
+                $this->logAction($this->userModel->getDb(), "Admin updated user: {$name}");
                 echo json_encode(['success' => true, 'message' => 'User updated successfully']);
             } else {
                 echo json_encode(['success' => false, 'message' => 'Failed to update user']);
@@ -237,6 +247,8 @@ class UserController extends BaseController {
                 // Return the new state
                 $user = $this->userModel->getById($data['user_id']);
                 $newState = $user ? (int)$user->getIsVerified() : null;
+                $name = $user ? $user->getFirstName() . ' ' . $user->getLastName() : "ID #{$data['user_id']}";
+                $this->logAction($this->userModel->getDb(), ($newState == 1 ? "Verified" : "Unverified") . " user ID documentation: {$name}");
                 echo json_encode(['success' => true, 'message' => 'Verification status updated', 'is_verified' => $newState]);
             } else {
                 echo json_encode(['success' => false, 'message' => 'Failed to update verification']);
@@ -267,6 +279,7 @@ class UserController extends BaseController {
 
         try {
             if ($this->userModel->delete($data['user_id'])) {
+                $this->logAction($this->userModel->getDb(), "Admin deleted user ID: #{$data['user_id']}");
                 echo json_encode(['success' => true, 'message' => 'User deleted successfully']);
             } else {
                 echo json_encode(['success' => false, 'message' => 'Failed to delete user']);
@@ -564,6 +577,11 @@ public function restoreHostStatus() {
             $si = $em['icon'];
         }
 
+        // Shelter History for evacuees
+        require_once 'models/OccupantModel.php';
+        $occupantModel = new OccupantModel($db);
+        $shelterHistory = $occupantModel->getShelterHistory($userId);
+
         require 'views/auth/profile.php';
     }
 
@@ -593,6 +611,7 @@ public function restoreHostStatus() {
             $lastName  = trim($_POST['last_name']  ?? '');
             $email     = trim($_POST['email']      ?? '');
             $phone     = trim($_POST['phone']      ?? '');
+            $emergencyContact = trim($_POST['emergency_contact'] ?? '');
 
             if (empty($firstName)) {
                 $profileError = 'First name is required.';
@@ -612,8 +631,8 @@ public function restoreHostStatus() {
                 if ($stmt->fetch()) {
                     $profileError = 'This email address is already in use by another account.';
                 } else {
-                    $update = $db->prepare('UPDATE users SET first_name=?, last_name=?, email=?, phone_number=? WHERE user_id=?');
-                    if ($update->execute([$firstName, $lastName, $email, $phone, $userId])) {
+                    $update = $db->prepare('UPDATE users SET first_name=?, last_name=?, email=?, phone_number=?, emergency_contact=? WHERE user_id=?');
+                    if ($update->execute([$firstName, $lastName, $email, $phone, $emergencyContact, $userId])) {
                         $_SESSION['name'] = $firstName . ($lastName ? ' ' . $lastName : '');
                         $profileSuccess   = 'Profile updated successfully.';
                         $userObj          = $this->userModel->getById($userId);
@@ -659,6 +678,43 @@ public function restoreHostStatus() {
         }
 
         require 'views/auth/settings.php';
+    }
+
+    // ── POST index.php?route=reset_password_submit ──────────────────────
+    public function resetPasswordSubmit() {
+        header('Content-Type: application/json');
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            http_response_code(405);
+            echo json_encode(['success' => false, 'message' => 'Method not allowed']);
+            exit;
+        }
+
+        SessionManager::start();
+
+        // Must have completed OTP verification step successfully
+        if (empty($_SESSION['pwd_reset_otp']) || empty($_SESSION['pwd_reset_otp']['verified'])) {
+            echo json_encode(['success' => false, 'message' => 'Unauthorized. Please verify your phone number first.']);
+            exit;
+        }
+
+        $body  = json_decode(file_get_contents('php://input'), true);
+        $password = $body['password'] ?? '';
+
+        if (strlen($password) < 8) {
+            echo json_encode(['success' => false, 'message' => 'Password must be at least 8 characters long.']);
+            exit;
+        }
+
+        $userId = $_SESSION['pwd_reset_otp']['user_id'];
+        
+        if ($this->userModel->update($userId, ['password' => $password])) {
+            unset($_SESSION['pwd_reset_otp']);
+            echo json_encode(['success' => true, 'message' => 'Password has been reset successfully.']);
+        } else {
+            echo json_encode(['success' => false, 'message' => 'Failed to reset password.']);
+        }
+        exit;
     }
 
     private function redirect($route, $param = null, $success = false) {

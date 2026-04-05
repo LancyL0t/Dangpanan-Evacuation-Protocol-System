@@ -36,11 +36,39 @@ document.getElementById('confirmYes').onclick = function() {
     closeConfirm();
 };
 
+// ── Action Menu Dropdowns ──────────────────────────────────
+function toggleActionMenu(e, btn) {
+    e.stopPropagation();
+    const menu = btn.nextElementSibling;
+    const isActive = menu.classList.contains('active');
+    
+    // Close all other open menus
+    document.querySelectorAll('.action-dropdown.active').forEach(m => m.classList.remove('active'));
+    
+    if (!isActive) {
+        menu.classList.add('active');
+    }
+}
+
+// Global click listener for closing menus and modals
+window.addEventListener('click', e => {
+    // Close Action Dropdowns
+    if (!e.target.closest('.action-menu')) {
+        document.querySelectorAll('.action-dropdown.active').forEach(m => m.classList.remove('active'));
+    }
+    
+    // Close Modals
+    ['userModal','shelterModal','alertModal','confirmModal'].forEach(id => {
+        const m = document.getElementById(id);
+        if (m && e.target === m) m.style.display = 'none';
+    });
+});
+
 // ── Tab Switching ──────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', function() {
     const tabBtns     = document.querySelectorAll('.tab-btn[data-tab]');
     const tabContents = document.querySelectorAll('.tab-content');
-    const loaders = { users: false, shelters: false, alerts: false, requests: false, occupants: false, logs: false };
+    const loaders = { users: false, shelters: false, alerts: false, requests: false, occupants: false, logs: false, verification: false };
 
     tabBtns.forEach(btn => {
         btn.addEventListener('click', function() {
@@ -48,8 +76,15 @@ document.addEventListener('DOMContentLoaded', function() {
             tabContents.forEach(c => c.classList.remove('active'));
             this.classList.add('active');
             const tab = this.dataset.tab;
-            document.getElementById(tab + '-tab').classList.add('active');
-            if (!loaders[tab]) { loadTab(tab); loaders[tab] = true; }
+            const target = document.getElementById(tab + '-tab');
+            if (target) target.classList.add('active');
+            
+            if (tab === 'overview') {
+                refreshDashboardStats().then(() => initCharts());
+            } else if (!loaders[tab]) {
+                loadTab(tab); 
+                loaders[tab] = true;
+            }
             setTimeout(() => lucide.createIcons(), 50);
         });
     });
@@ -64,14 +99,11 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('newUserBtn')   ?.addEventListener('click', openNewUserModal);
     document.getElementById('newShelterBtn')?.addEventListener('click', openNewShelterModal);
     document.getElementById('newAlertBtn')  ?.addEventListener('click', openNewAlertModal);
+    document.getElementById('syncCapacitiesBtn')?.addEventListener('click', repairCapacities);
 
-    // Close modals on backdrop click
-    window.addEventListener('click', e => {
-        ['userModal','shelterModal','alertModal','confirmModal'].forEach(id => {
-            const m = document.getElementById(id);
-            if (e.target === m) m.style.display = 'none';
-        });
-    });
+    // Initialize Dashboard Charts and Ticker
+    initCharts();
+    initLiveTicker();
 });
 
 function loadTab(tab) {
@@ -81,23 +113,160 @@ function loadTab(tab) {
     else if (tab === 'requests')  loadRequests();
     else if (tab === 'occupants') loadOccupants();
     else if (tab === 'logs')      loadLogs();
+    else if (tab === 'verification') loadVerification();
 }
 
-// ── Generic table search filter ───────────────────────────
-function filterTable(tableId, query) {
-    const table  = document.getElementById(tableId);
-    if (!table) return;
-    const rows   = table.querySelectorAll('tbody tr');
-    const q      = query.toLowerCase();
-    const statusFilter = document.getElementById(tableId === 'sheltersTable' ? 'shelterStatusFilter' :
-                          tableId === 'requestsTable' ? 'reqStatusFilter' : null);
-    const sv = statusFilter ? statusFilter.value.toLowerCase() : '';
-    rows.forEach(row => {
-        const text  = row.textContent.toLowerCase();
-        const matchQ  = q === '' || text.includes(q);
-        const matchSt = sv === '' || text.includes(sv);
-        row.style.display = (matchQ && matchSt) ? '' : 'none';
+// ── Dashboard Charts (Chart.js) ────────────────────────────
+window.adminCharts = { donut: null, bar: null };
+
+function initCharts() {
+    if (typeof Chart === 'undefined' || !window.SHELTER_CAPACITY_DATA || !document.getElementById('capacityDonutChart')) return;
+    
+    const data = window.SHELTER_CAPACITY_DATA;
+    if (!data || data.length === 0) return;
+
+    // Set globally to avoid re-setting on each call
+    Chart.defaults.color = '#64748b';
+    Chart.defaults.font.family = '"Inter", sans-serif';
+
+    // 1. Capacity Donut Chart (Total vs Available)
+    const totalMax  = data.reduce((sum, s) => sum + (parseInt(s.max_capacity) || 0), 0);
+    const totalCurr = data.reduce((sum, s) => sum + (parseInt(s.current_capacity) || 0), 0);
+    const available = Math.max(0, totalMax - totalCurr);
+
+    const donutCtx = document.getElementById('capacityDonutChart').getContext('2d');
+    if (window.adminCharts.donut) window.adminCharts.donut.destroy();
+
+    window.adminCharts.donut = new Chart(donutCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Occupied', 'Available'],
+            datasets: [{
+                data: [totalCurr, available],
+                backgroundColor: ['#ef4444', '#10b981'],
+                borderWidth: 0,
+                hoverOffset: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom', labels: { usePointStyle: true, padding: 20 } }
+            },
+            cutout: '75%'
+        }
     });
+
+    // 2. Top Shelters Bar Chart
+    const topShelters = data.slice(0, 5); 
+    const labels      = topShelters.map(s => s.shelter_name.length > 15 ? s.shelter_name.substring(0,15)+'...' : s.shelter_name);
+    const chartData   = topShelters.map(s => parseInt(s.current_capacity) || 0);
+    const maxData     = topShelters.map(s => parseInt(s.max_capacity) || 0);
+
+    const barCtx = document.getElementById('topSheltersBarChart').getContext('2d');
+    if (window.adminCharts.bar) window.adminCharts.bar.destroy();
+
+    window.adminCharts.bar = new Chart(barCtx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Current Occupancy',
+                    data: chartData,
+                    backgroundColor: '#3b82f6',
+                    borderRadius: 4
+                },
+                {
+                    label: 'Max Capacity',
+                    data: maxData,
+                    backgroundColor: '#e2e8f0',
+                    borderRadius: 4
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: { beginAtZero: true, grid: { display: false } },
+                x: { grid: { display: false } }
+            },
+            plugins: {
+                legend: { position: 'bottom', labels: { usePointStyle: true, padding: 20 } }
+            }
+        }
+    });
+}
+
+// ── Live Activity Ticker ───────────────────────────────────
+function initLiveTicker() {
+    const ticker = document.getElementById('liveActivityTicker');
+    if (!ticker) return;
+
+    function fetchTickerLogs() {
+        fetch('index.php?route=api-logs')
+            .then(r => r.json())
+            .then(data => {
+                if (data.success && data.logs) {
+                    const topLogs = data.logs.slice(0, 15);
+                    if (topLogs.length === 0) {
+                        ticker.innerHTML = '<p class="state-empty" style="padding: 1rem; text-align: center; color: var(--text-muted);">No recent activity.</p>';
+                        return;
+                    }
+                    ticker.innerHTML = topLogs.map(log => {
+                        return `
+                        <div class="ticker-item" style="font-size: 0.82rem; border-bottom: 1px solid var(--border); padding-bottom: 0.75rem;">
+                            <div style="color: var(--text-muted); font-size: 0.72rem; margin-bottom: 0.2rem; display: flex; align-items: center; gap: 0.3rem;">
+                                <i data-lucide="clock" style="width: 12px; height: 12px;"></i> ${timeAgo(log.created_at)}
+                            </div>
+                            <div style="font-weight: 500; color: var(--text); margin-bottom: 0.2rem;">${log.action}</div>
+                            <div style="color: var(--primary); font-size: 0.75rem; font-weight: 600;">System User: ${log.user_name || 'System'}</div>
+                        </div>`;
+                    }).join('');
+                    if (typeof lucide !== 'undefined') lucide.createIcons();
+                }
+            })
+            .catch(() => {
+                ticker.innerHTML = '<p class="text-danger" style="font-size:0.8rem; padding: 1rem; text-align: center;">Live feed disconnected.</p>';
+            });
+    }
+
+    fetchTickerLogs();
+    // Poll every 10 seconds
+    setInterval(fetchTickerLogs, 10000);
+}
+
+// ── DataTables System ───────────────────────────────────────
+function initDataTable(tableId) {
+    if (typeof $ === 'undefined' || typeof $.fn.DataTable === 'undefined') return;
+    const table = $('#' + tableId);
+    if (!table.length) return;
+    
+    if ($.fn.DataTable.isDataTable(table)) {
+        table.DataTable().destroy();
+    }
+    
+    const dt = table.DataTable({
+        pageLength: 10,
+        lengthMenu: [10, 25, 50, 100],
+        bLengthChange: true,
+        bFilter: true,     
+        bInfo: true,
+        bAutoWidth: false,
+        language: { search: "", searchPlaceholder: "Search records..." },
+        dom: '<"table-top-actions"lf>rt<"table-bottom-actions"ip><"clear">',
+        ordering: false // Disable default sort to keep SQL order initially 
+    });
+
+    if (tableId === 'sheltersTable') {
+        const sf = $('#shelterStatusFilter');
+        sf.off('change').on('change', function() { dt.columns(6).search(this.value).draw(); });
+    } else if (tableId === 'requestsTable') {
+        const rf = $('#reqStatusFilter');
+        rf.off('change').on('change', function() { dt.columns(4).search(this.value).draw(); });
+    }
 }
 
 // ── Date formatter ─────────────────────────────────────────
@@ -140,7 +309,15 @@ let _allUsers = [];
 function loadUsers() {
     fetch('index.php?route=admin-get-users')
         .then(r => r.json()).then(data => {
-            if (data.success) { _allUsers = data.users; displayUsers(data.users); }
+            if (data.success) { 
+                _allUsers = data.users; 
+                displayUsers(data.users); 
+                updateVerificationBadge(data.users);
+                // Also update verification table if it's currently loaded
+                if (document.getElementById('verification-tab').classList.contains('active')) {
+                    displayVerification(data.users);
+                }
+            }
             else showError('Failed to load users');
         }).catch(() => showError('Error loading users'));
 }
@@ -167,13 +344,31 @@ function displayUsers(users) {
             <td>${verifiedTag}</td>
             <td style="color:#94a3b8;font-size:0.8rem;">${fmtDate(u.created_at)}</td>
             <td>
-                <button class="action-btn btn-edit" onclick="editUser(${u.user_id})">Edit</button>
-                <button class="action-btn ${u.is_verified == 1 ? 'btn-decline' : 'btn-approve'}" onclick="toggleVerifyUser(${u.user_id},'${fullName.replace(/'/g,"\\'")}',${u.is_verified})">${u.is_verified == 1 ? '✗ Unverify' : '✔ Verify'}</button>
-                <button class="action-btn btn-delete" onclick="confirmDeleteUser(${u.user_id},'${fullName.replace(/'/g,"\\'")}')">Delete</button>
+                <div class="action-menu">
+                    <button class="action-dot-btn" onclick="toggleActionMenu(event, this)">
+                        <i data-lucide="more-vertical"></i>
+                    </button>
+                    <div class="action-dropdown">
+                        <button class="action-dropdown-item" onclick="editUser(${u.user_id})">
+                            <i data-lucide="edit-3"></i> Edit User
+                        </button>
+                        <button class="action-dropdown-item" onclick="toggleVerifyUser(${u.user_id},'${fullName.replace(/'/g,"\\'")}',${u.is_verified})">
+                            <i data-lucide="${u.is_verified == 1 ? 'user-minus' : 'user-check'}"></i> ${u.is_verified == 1 ? 'Unverify' : 'Verify Host'}
+                        </button>
+                        ${u.role === 'Host' && u.is_verified == 1 ? `
+                        <a href="index.php?route=generate_cert&user_id=${u.user_id}" target="_blank" class="action-dropdown-item">
+                            <i data-lucide="award"></i> Host Certification (PDF)
+                        </a>
+                        ` : ''}
+                        <button class="action-dropdown-item text-danger" onclick="confirmDeleteUser(${u.user_id},'${fullName.replace(/'/g,"\\'")}')">
+                            <i data-lucide="trash-2"></i> Delete User
+                        </button>
+                    </div>
+                </div>
             </td>
         </tr>`;
     }).join('');
-    setTimeout(() => lucide.createIcons(), 50);
+    setTimeout(() => { lucide.createIcons(); initDataTable('usersTable'); }, 50);
 }
 
 function openNewUserModal() {
@@ -220,6 +415,7 @@ function toggleVerifyUser(id, name, currentState) {
             if (d.success) {
                 showSuccess(d.is_verified ? `${name} is now verified ✔` : `${name} verification removed`);
                 loadUsers();
+                refreshDashboardStats(); // Sync overview counts
             } else {
                 showError(d.message || 'Failed');
             }
@@ -230,7 +426,11 @@ function deleteUser(id) {
     fetch('index.php?route=admin-delete-user', {
         method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({user_id:id})
     }).then(r=>r.json()).then(d => {
-        if (d.success) { showSuccess('User deleted'); loadUsers(); }
+        if (d.success) { 
+            showSuccess('User deleted'); 
+            loadUsers();
+            refreshDashboardStats();
+        }
         else showError(d.message || 'Failed');
     });
 }
@@ -253,12 +453,73 @@ document.addEventListener('DOMContentLoaded', () => {
         fetch(`index.php?route=${route}`, {
             method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data)
         }).then(r=>r.json()).then(d => {
-            if (d.success) { showSuccess(d.message); closeUserModal(); loadUsers(); }
+            if (d.success) { 
+                showSuccess(d.message); 
+                closeUserModal(); 
+                loadUsers();
+                refreshDashboardStats(); 
+            }
             else showError(d.message || 'Failed');
         });
     });
 });
+// ══════════════════════════════════════════
+// HOST VERIFICATION QUEUE
+// ══════════════════════════════════════════
+function updateVerificationBadge(users) {
+    const queueCount = users.filter(u => u.role === 'Host' && u.is_verified == 0).length;
+    const badgeSpan = document.getElementById('verifyBadge');
+    if (badgeSpan) {
+        badgeSpan.textContent = queueCount > 0 ? queueCount : '';
+        badgeSpan.style.display = queueCount > 0 ? 'inline-block' : 'none';
+    }
+}
 
+function loadVerification() {
+    if (!_allUsers.length) {
+        loadUsers(); // This will automatically call displayVerification if tab is active
+    } else {
+        displayVerification(_allUsers);
+    }
+}
+
+function displayVerification(users) {
+    const queue = users.filter(u => u.role === 'Host' && u.is_verified == 0);
+    const tbody = document.querySelector('#verificationTable tbody');
+    if (!queue.length) { 
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:2rem;color:#94a3b8;">No hosts awaiting verification</td></tr>'; 
+        return; 
+    }
+    
+    tbody.innerHTML = queue.map(u => {
+        const mi = u.middle_initial ? ' ' + u.middle_initial + ' ' : ' ';
+        const fullName = (u.first_name + mi + (u.last_name || '')).trim();
+        const idLink = u.gov_id_url && u.gov_id_url !== 'pending'
+            ? `<a href="${u.gov_id_url}" target="_blank" style="color:#3b82f6;font-size:0.78rem;text-decoration:underline;">View ID Document</a>`
+            : `<span style="color:#94a3b8;font-size:0.78rem;">${u.gov_id_url === 'pending' ? 'Pending Upload' : '—'}</span>`;
+            
+        return `<tr>
+            <td style="font-weight:600;">${fullName}</td>
+            <td>${u.email}</td>
+            <td>${u.phone_number || '<span style="color:#94a3b8;">—</span>'}</td>
+            <td>${idLink}</td>
+            <td style="color:#94a3b8;font-size:0.8rem;">${fmtDate(u.created_at)}</td>
+            <td>
+                <div class="action-menu">
+                    <button class="action-dot-btn" onclick="toggleActionMenu(event, this)">
+                        <i data-lucide="more-vertical"></i>
+                    </button>
+                    <div class="action-dropdown">
+                        <button class="action-dropdown-item" onclick="toggleVerifyUser(${u.user_id},'${fullName.replace(/'/g,"\\'")}',${u.is_verified})">
+                            <i data-lucide="shield-check"></i> Verify Host
+                        </button>
+                    </div>
+                </div>
+            </td>
+        </tr>`;
+    }).join('');
+    setTimeout(() => { lucide.createIcons(); initDataTable('verificationTable'); }, 50);
+}
 // ══════════════════════════════════════════
 // SHELTERS CRUD
 // ══════════════════════════════════════════
@@ -290,12 +551,23 @@ function displayShelters(shelters) {
             <td style="font-size:0.82rem;">${s.first_name ? s.first_name+' '+(s.last_name||'') : '<span style="color:#94a3b8;">—</span>'}</td>
             <td>${statusTag(s.is_active==1?'active':'inactive')}</td>
             <td>
-                <button class="action-btn btn-edit" onclick="editShelter(${s.shelter_id})">Edit</button>
-                <button class="action-btn btn-delete" onclick="confirmDeleteShelter(${s.shelter_id},'${s.shelter_name}')">Delete</button>
+                <div class="action-menu">
+                    <button class="action-dot-btn" onclick="toggleActionMenu(event, this)">
+                        <i data-lucide="more-vertical"></i>
+                    </button>
+                    <div class="action-dropdown">
+                        <button class="action-dropdown-item" onclick="editShelter(${s.shelter_id})">
+                            <i data-lucide="edit-3"></i> Edit Shelter
+                        </button>
+                        <button class="action-dropdown-item text-danger" onclick="confirmDeleteShelter(${s.shelter_id},'${s.shelter_name.replace(/'/g,"\\'")}')">
+                            <i data-lucide="trash-2"></i> Delete Shelter
+                        </button>
+                    </div>
+                </div>
             </td>
         </tr>`;
     }).join('');
-    setTimeout(() => lucide.createIcons(), 50);
+    setTimeout(() => { lucide.createIcons(); initDataTable('sheltersTable'); }, 50);
 }
 function openNewShelterModal() {
     document.getElementById('shelterModalTitle').textContent = 'New Shelter';
@@ -329,7 +601,11 @@ function deleteShelter(id) {
     fetch('index.php?route=admin-delete-shelter', {
         method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({shelter_id:id})
     }).then(r=>r.json()).then(d => {
-        if (d.success) { showSuccess('Shelter deleted'); loadShelters(); }
+        if (d.success) { 
+            showSuccess('Shelter deleted'); 
+            loadShelters();
+            refreshDashboardStats();
+        }
         else showError(d.message || 'Failed');
     });
 }
@@ -351,7 +627,12 @@ document.addEventListener('DOMContentLoaded', () => {
         fetch(`index.php?route=${route}`, {
             method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data)
         }).then(r=>r.json()).then(d => {
-            if (d.success) { showSuccess(d.message); closeShelterModal(); loadShelters(); }
+            if (d.success) { 
+                showSuccess(d.message); 
+                closeShelterModal(); 
+                loadShelters(); 
+                refreshDashboardStats();
+            }
             else showError(d.message || 'Failed');
         });
     });
@@ -380,11 +661,22 @@ function displayAlerts(alerts) {
         <td>${a.is_active == 1 ? '<span class="live-tag tag-active">Active</span>' : '<span class="live-tag tag-inactive">Inactive</span>'}</td>
         <td style="color:#94a3b8;font-size:0.8rem;">${fmtDate(a.created_at)}</td>
         <td>
-            <button class="action-btn btn-edit" onclick="editAlert(${a.alert_id})">Edit</button>
-            <button class="action-btn btn-delete" onclick="confirmDeleteAlert(${a.alert_id},'${a.title.replace(/'/g,"\\'")}')">Delete</button>
+            <div class="action-menu">
+                <button class="action-dot-btn" onclick="toggleActionMenu(event, this)">
+                    <i data-lucide="more-vertical"></i>
+                </button>
+                <div class="action-dropdown">
+                    <button class="action-dropdown-item" onclick="editAlert(${a.alert_id})">
+                        <i data-lucide="edit-3"></i> Edit Alert
+                    </button>
+                    <button class="action-dropdown-item text-danger" onclick="confirmDeleteAlert(${a.alert_id},'${a.title.replace(/'/g,"\\'")}')">
+                        <i data-lucide="trash-2"></i> Delete Alert
+                    </button>
+                </div>
+            </div>
         </td>
     </tr>`).join('');
-    setTimeout(() => lucide.createIcons(), 50);
+    setTimeout(() => { lucide.createIcons(); initDataTable('alertsTable'); }, 50);
 }
 function openNewAlertModal() {
     document.getElementById('alertModalTitle').textContent = 'New Alert';
@@ -434,7 +726,12 @@ document.addEventListener('DOMContentLoaded', () => {
         fetch(`index.php?route=${route}`, {
             method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data)
         }).then(r=>r.json()).then(d => {
-            if (d.success) { showSuccess(d.message); closeAlertModal(); loadAlerts(); }
+            if (d.success) { 
+                showSuccess(d.message); 
+                closeAlertModal(); 
+                loadAlerts(); 
+                refreshDashboardStats();
+            }
             else showError(d.message || 'Failed');
         });
     });
@@ -463,19 +760,34 @@ function displayRequests(reqs) {
         <td style="color:#94a3b8;font-size:0.78rem;">${fmtDateTime(r.created_at)}</td>
         <td>
             ${r.status === 'pending' ? `
-                <button class="action-btn btn-approve" onclick="adminApprove(${r.id})">✓ Approve</button>
-                <button class="action-btn btn-decline" onclick="adminDecline(${r.id})">✗ Decline</button>
+                <div class="action-menu">
+                    <button class="action-dot-btn" onclick="toggleActionMenu(event, this)">
+                        <i data-lucide="more-vertical"></i>
+                    </button>
+                    <div class="action-dropdown">
+                        <button class="action-dropdown-item" onclick="adminApprove(${r.id})">
+                            <i data-lucide="check-circle"></i> Approve
+                        </button>
+                        <button class="action-dropdown-item text-danger" onclick="adminDecline(${r.id})">
+                            <i data-lucide="x-circle"></i> Decline
+                        </button>
+                    </div>
+                </div>
             ` : '<span style="color:#94a3b8;font-size:0.75rem;">—</span>'}
         </td>
     </tr>`).join('');
-    setTimeout(() => lucide.createIcons(), 50);
+    setTimeout(() => { lucide.createIcons(); initDataTable('requestsTable'); }, 50);
 }
 function adminApprove(id) {
     showConfirm('Approve Request?', 'Force-approve this shelter request as admin?', '✅', 'Yes, Approve', () => {
         fetch('index.php?route=admin-force-approve', {
             method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({request_id:id})
         }).then(r=>r.json()).then(d => {
-            if (d.success) { showSuccess('Request approved'); loadRequests(); }
+            if (d.success) { 
+                showSuccess('Request approved'); 
+                loadRequests(); 
+                refreshDashboardStats();
+            }
             else showError(d.message);
         });
     });
@@ -485,7 +797,11 @@ function adminDecline(id) {
         fetch('index.php?route=admin-force-decline', {
             method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({request_id:id})
         }).then(r=>r.json()).then(d => {
-            if (d.success) { showSuccess('Request declined'); loadRequests(); }
+            if (d.success) { 
+                showSuccess('Request declined'); 
+                loadRequests(); 
+                refreshDashboardStats();
+            }
             else showError(d.message);
         });
     });
@@ -494,38 +810,165 @@ function adminDecline(id) {
 // ══════════════════════════════════════════
 // OCCUPANTS (admin view)
 // ══════════════════════════════════════════
-function loadOccupants() {
-    fetch('index.php?route=admin-get-occupants')
-        .then(r=>r.json()).then(data => {
-            if (data.success) displayOccupants(data.occupants);
-            else showError('Failed to load occupants');
+function refreshDashboardStats() {
+    return fetch('index.php?route=admin-get-shelter-stats')
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                window.SHELTER_CAPACITY_DATA = data.shelters;
+                // If overview charts are initialized, they will be updated on next tab switch
+                // or we can manually trigger if overview is active
+                if (document.getElementById('overview-tab').classList.contains('active')) {
+                    initCharts();
+                }
+            }
         });
 }
+
+function loadOccupants() {
+    // Sync stats first, then load occupants to ensure headers are fresh
+    refreshDashboardStats().then(() => {
+        fetch('index.php?route=admin-get-occupants')
+            .then(r=>r.json()).then(data => {
+                if (data.success) displayOccupants(data.occupants);
+                else showError('Failed to load occupants');
+            });
+    });
+}
 function displayOccupants(occs) {
-    const tbody = document.querySelector('#occupantsTable tbody');
-    if (!occs.length) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:2rem;color:#94a3b8;">No active occupants</td></tr>'; return; }
-    tbody.innerHTML = occs.map(o => {
-        const dur = Math.floor((Date.now() - new Date(o.checked_in_at).getTime()) / 3600000);
-        return `<tr>
-            <td style="color:#94a3b8;font-size:0.75rem;">#${o.occupant_id}</td>
-            <td style="font-weight:600;">${o.first_name} ${o.last_name || ''}<br><span style="font-size:0.75rem;color:#94a3b8;">${o.phone_number||''}</span></td>
-            <td style="font-size:0.8rem;">${o.email}</td>
-            <td style="font-weight:600;">${o.shelter_name}</td>
-            <td style="text-align:center;">${o.group_size}</td>
-            <td style="font-size:0.8rem;">${fmtDateTime(o.checked_in_at)}<br><span style="color:#94a3b8;font-size:0.72rem;">${dur}h ago</span></td>
-            <td><button class="action-btn btn-delete" onclick="forceCheckout(${o.occupant_id},'${o.first_name}')">Check Out</button></td>
-        </tr>`;
+    const container = document.getElementById('occupantsGroupContainer');
+    if (!container) return;
+
+    // Use current capacity data as the baseline for sections
+    const shelters = window.SHELTER_CAPACITY_DATA || [];
+    
+    // Group occupants by shelter_id
+    const grouped = occs.reduce((acc, o) => {
+        if (!acc[o.shelter_id]) acc[o.shelter_id] = [];
+        acc[o.shelter_id].push(o);
+        return acc;
+    }, {});
+
+    if (shelters.length === 0 && occs.length === 0) {
+        container.innerHTML = '<div class="panel"><div class="state-empty">No shelter or occupancy data available.</div></div>';
+        return;
+    }
+
+    container.innerHTML = shelters.map(s => {
+        const shelterOccs = grouped[s.shelter_id] || [];
+        // Calculate real-time capacity from actual occupants in the list
+        const current = shelterOccs.reduce((sum, o) => sum + parseInt(o.group_size || 0), 0);
+        const max = parseInt(s.max_capacity) || 1;
+        const pct = Math.min(100, Math.round((current / max) * 100));
+        const colorClass = pct > 85 ? 'high' : (pct > 50 ? 'mid' : 'low');
+
+        return `
+        <div class="shelter-occupant-group">
+            <div class="group-header">
+                <div class="group-info">
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <h3><i data-lucide="home"></i> ${s.shelter_name}</h3>
+                        <a href="index.php?route=report_occupants&shelter_id=${s.shelter_id}" target="_blank" class="secondary-btn" style="padding: 0.35rem 0.75rem; font-size: 0.75rem; text-decoration:none;">
+                            <i data-lucide="file-text" style="width:14px;height:14px;"></i> Export PDF
+                        </a>
+                    </div>
+                    <p><i data-lucide="map-pin" style="width:12px;height:12px;"></i> Facility ID: #${s.shelter_id}</p>
+                </div>
+                <div class="group-stats">
+                    <div class="stat-item">
+                        <span class="stat-label">Verified Occupants</span>
+                        <span class="stat-value">${current}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Max Capacity</span>
+                        <span class="stat-value">${max}</span>
+                    </div>
+                    <div class="occupancy-progress-wrapper">
+                        <div class="occupancy-progress">
+                            <div class="progress-bar ${colorClass}" style="width: ${pct}%"></div>
+                        </div>
+                        <span class="progress-text">${pct}% Full</span>
+                    </div>
+                </div>
+            </div>
+            <div class="group-content">
+                ${shelterOccs.length > 0 ? `
+                    <div class="occupant-grid">
+                        ${shelterOccs.map(o => {
+                            const dur = Math.floor((Date.now() - new Date(o.checked_in_at).getTime()) / 3600000);
+                            return `
+                            <div class="occupant-card">
+                                <div class="card-top">
+                                    <div class="occupant-main">
+                                        <h4>${o.first_name} ${o.last_name || ''}</h4>
+                                        <span class="occ-id">ID #${o.occupant_id}</span>
+                                    </div>
+                                    <div class="action-menu">
+                                        <button class="action-dot-btn" onclick="toggleActionMenu(event, this)">
+                                            <i data-lucide="more-vertical"></i>
+                                        </button>
+                                        <div class="action-dropdown">
+                                            <button class="action-dropdown-item text-danger" onclick="forceCheckout(${o.occupant_id},'${o.first_name}')">
+                                                <i data-lucide="log-out"></i> Force Checkout
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="card-body">
+                                    <div class="info-row">
+                                        <i data-lucide="mail"></i>
+                                        <span>${o.email}</span>
+                                    </div>
+                                    <div class="info-row">
+                                        <i data-lucide="phone"></i>
+                                        <span>${o.phone_number || 'No Phone'}</span>
+                                    </div>
+                                    <div class="info-row">
+                                        <i data-lucide="clock"></i>
+                                        <span>Checked in ${dur}h ago</span>
+                                    </div>
+                                </div>
+                                <div class="card-footer">
+                                    <span class="card-badge">${o.group_size} Person${o.group_size > 1 ? 's' : ''}</span>
+                                    <span class="checkin-time">${fmtDateTime(o.checked_in_at)}</span>
+                                </div>
+                            </div>`;
+                        }).join('')}
+                    </div>
+                ` : `<div class="group-empty">No active occupants in this facility.</div>`}
+            </div>
+        </div>`;
     }).join('');
-    setTimeout(() => lucide.createIcons(), 50);
+
+    setTimeout(() => { 
+        lucide.createIcons(); 
+        // No DataTables for card grid
+    }, 50);
 }
 function forceCheckout(id, name) {
     showConfirm('Force Check-Out?', `Check out "${name}" from their shelter? This cannot be undone.`, '🚪', 'Yes, Check Out', () => {
         fetch('index.php?route=admin-force-checkout', {
             method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({occupant_id:id})
         }).then(r=>r.json()).then(d => {
-            if (d.success) { showSuccess('Occupant checked out'); loadOccupants(); }
+            if (d.success) { 
+                showSuccess('Occupant checked out'); 
+                loadOccupants(); // This now calls refreshDashboardStats internally
+            }
             else showError(d.message);
         });
+    });
+}
+
+function repairCapacities() {
+    showConfirm('Sync Database Capacities?', 'This will re-calculate all shelter occupancy numbers from actual occupant records. Use this to fix discrepancies.', '🔄', 'Sync Now', () => {
+        fetch('index.php?route=admin-repair-capacities', { method: 'POST' })
+            .then(r => r.json())
+            .then(d => {
+                if (d.success) {
+                    showSuccess(d.message);
+                    loadOccupants(); // Refresh UI
+                } else showError(d.message);
+            });
     });
 }
 
@@ -541,20 +984,14 @@ function loadLogs() {
         });
 }
 function displayLogs(logs) {
-    const list = document.getElementById('logList');
-    if (!logs.length) { list.innerHTML = '<p style="text-align:center;padding:2rem;color:#94a3b8;">No activity logs yet.</p>'; return; }
-    list.innerHTML = logs.map(l => `
-        <div class="log-row">
-            <span class="log-time">${timeAgo(l.created_at)}</span>
-            <span class="log-user">${l.user_name || 'System'}</span>
-            <span class="log-action">${l.action}</span>
-        </div>
+    const tbody = document.querySelector('#logsTable tbody');
+    if (!logs.length) { tbody.innerHTML = '<tr><td colspan="3" class="td-empty">No activity logs yet.</td></tr>'; return; }
+    tbody.innerHTML = logs.map(l => `
+        <tr>
+            <td style="color:#94a3b8;font-size:0.8rem;">${fmtDateTime(l.created_at)}</td>
+            <td style="font-weight:600;">${l.user_name || 'System'}</td>
+            <td>${l.action}</td>
+        </tr>
     `).join('');
-}
-function filterLogList(q) {
-    const filtered = _allLogs.filter(l =>
-        (l.action||'').toLowerCase().includes(q.toLowerCase()) ||
-        (l.user_name||'').toLowerCase().includes(q.toLowerCase())
-    );
-    displayLogs(filtered);
+    setTimeout(() => initDataTable('logsTable'), 50);
 }

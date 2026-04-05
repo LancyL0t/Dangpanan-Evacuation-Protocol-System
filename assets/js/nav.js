@@ -140,4 +140,26 @@ document.addEventListener("DOMContentLoaded", function () {
             }
         }
     });
+
+    // --- CHAT UNREAD BADGE POLLING ---
+    function pollUnreadCount() {
+        fetch('index.php?route=chat_unread_count')
+            .then(r => r.json())
+            .then(data => {
+                const badge = document.getElementById('navChatBadge');
+                if (badge && data.success) {
+                    if (data.count > 0) {
+                        badge.textContent = data.count > 9 ? '9+' : data.count;
+                        badge.style.display = 'flex';
+                    } else {
+                        badge.style.display = 'none';
+                    }
+                }
+            })
+            .catch(() => {});
+    }
+
+    // Poll immediately, then every 15 seconds
+    pollUnreadCount();
+    setInterval(pollUnreadCount, 15000);
 });

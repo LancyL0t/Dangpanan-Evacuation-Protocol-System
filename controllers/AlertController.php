@@ -1,7 +1,8 @@
 <?php
+require_once 'controllers/BaseController.php';
 require_once 'models/AlertModel.php';
 
-class AlertController {
+class AlertController extends BaseController {
     private $db;
     private $alertModel;
 
@@ -17,14 +18,7 @@ class AlertController {
         exit();
     }
 
-    private function logAction($action) {
-        if (session_status() === PHP_SESSION_NONE) session_start();
-        $uid = $_SESSION['user_id'] ?? null;
-        try {
-            $stmt = $this->db->prepare("INSERT INTO system_logs (user_id, action) VALUES (?,?)");
-            $stmt->execute([$uid, $action]);
-        } catch(Exception $e) {}
-    }
+
 
     public function getAll() {
         try { $this->json(['success'=>true,'alerts'=>$this->alertModel->getAll()]); }
@@ -42,7 +36,7 @@ class AlertController {
         if(empty($data['title'])||empty($data['type'])){$this->json(['success'=>false,'message'=>'Title and type required']);}
         try {
             if($this->alertModel->create($data)){
-                $this->logAction('Created alert: '.$data['title']);
+                $this->logAction($this->db, 'Created alert: '.$data['title']);
                 $this->json(['success'=>true,'message'=>'Alert created']);
             } else { $this->json(['success'=>false,'message'=>'Failed to create']); }
         } catch(Exception $e){$this->json(['success'=>false,'message'=>$e->getMessage()]);}
@@ -54,7 +48,7 @@ class AlertController {
         if(empty($data['alert_id'])){$this->json(['success'=>false,'message'=>'Alert ID required']);}
         try {
             if($this->alertModel->update($data['alert_id'],$data)){
-                $this->logAction('Updated alert ID: '.$data['alert_id']);
+                $this->logAction($this->db, 'Updated alert ID: '.$data['alert_id']);
                 $this->json(['success'=>true,'message'=>'Alert updated']);
             } else { $this->json(['success'=>false,'message'=>'Failed to update']); }
         } catch(Exception $e){$this->json(['success'=>false,'message'=>$e->getMessage()]);}
@@ -66,7 +60,7 @@ class AlertController {
         if(empty($data['alert_id'])){$this->json(['success'=>false,'message'=>'Alert ID required']);}
         try {
             if($this->alertModel->delete($data['alert_id'])){
-                $this->logAction('Deleted alert ID: '.$data['alert_id']);
+                $this->logAction($this->db, 'Deleted alert ID: '.$data['alert_id']);
                 $this->json(['success'=>true,'message'=>'Alert deleted']);
             } else { $this->json(['success'=>false,'message'=>'Failed to delete']); }
         } catch(Exception $e){$this->json(['success'=>false,'message'=>$e->getMessage()]);}
@@ -95,7 +89,7 @@ class AlertController {
             require_once 'models/RequestModel.php';
             $rm = new RequestModel($this->db);
             if($rm->approveRequest($data['request_id'])){
-                $this->logAction('Admin force-approved request ID: '.$data['request_id']);
+                $this->logAction($this->db, 'Admin force-approved request ID: '.$data['request_id']);
                 $this->json(['success'=>true,'message'=>'Request approved']);
             } else { $this->json(['success'=>false,'message'=>'Failed']); }
         } catch(Exception $e){$this->json(['success'=>false,'message'=>$e->getMessage()]);}
@@ -109,7 +103,7 @@ class AlertController {
             require_once 'models/RequestModel.php';
             $rm = new RequestModel($this->db);
             if($rm->declineRequest($data['request_id'],'Admin override')){
-                $this->logAction('Admin force-declined request ID: '.$data['request_id']);
+                $this->logAction($this->db, 'Admin force-declined request ID: '.$data['request_id']);
                 $this->json(['success'=>true,'message'=>'Request declined']);
             } else { $this->json(['success'=>false,'message'=>'Failed']); }
         } catch(Exception $e){$this->json(['success'=>false,'message'=>$e->getMessage()]);}
@@ -145,7 +139,7 @@ class AlertController {
                 $this->db->prepare("UPDATE shelter SET current_capacity=GREATEST(0,current_capacity-?) WHERE shelter_id=?")->execute([$o['group_size'],$o['shelter_id']]);
                 $this->db->prepare("UPDATE requests SET status='completed' WHERE id=?")->execute([$o['request_id']]);
             }
-            $this->logAction('Admin force-checked-out occupant ID: '.$data['occupant_id']);
+            $this->logAction($this->db, 'Admin force-checked-out occupant ID: '.$data['occupant_id']);
             $this->json(['success'=>true,'message'=>'Occupant checked out']);
         } catch(Exception $e){$this->json(['success'=>false,'message'=>$e->getMessage()]);}
     }
@@ -237,5 +231,54 @@ class AlertController {
         $shelterBars     = $shelterBarsStmt->fetchAll(\PDO::FETCH_ASSOC);
 
         require 'views/auth/admin_dashboard.php';
+    }
+
+    /**
+     * getShelterStatsJson — returns latest capacity data for all active shelters as JSON.
+     * Used for real-time dashboard updates without page refreshes.
+     */
+    public function getShelterStatsJson() {
+        try {
+            $stmt = $this->db->query("SELECT shelter_id, shelter_name, current_capacity, max_capacity FROM shelter WHERE is_active=1 ORDER BY current_capacity DESC");
+            $this->json(['success'=>true, 'shelters'=>$stmt->fetchAll(\PDO::FETCH_ASSOC)]);
+        } catch(Exception $e){$this->json(['success'=>false,'message'=>$e->getMessage()], 500);}
+    }
+
+    /**
+     * repairCapacities — syncs shelter.current_capacity with the actual sum of active occupants.
+     * Fixes data discrepancies between tables.
+     */
+    public function repairCapacities() {
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'Admin') {
+            $this->json(['success'=>false, 'message'=>'Unauthorized'], 403);
+        }
+
+        try {
+            $this->db->beginTransaction();
+            // Reset all to 0 first
+            $this->db->query("UPDATE shelter SET current_capacity = 0");
+            
+            // Calculate and Update from active occupants
+            $stmt = $this->db->query("
+                SELECT shelter_id, SUM(group_size) as total 
+                FROM occupants 
+                WHERE status = 'active' 
+                GROUP BY shelter_id
+            ");
+            $results = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+            $update = $this->db->prepare("UPDATE shelter SET current_capacity = ? WHERE shelter_id = ?");
+            foreach ($results as $r) {
+                $update->execute([$r['total'], $r['shelter_id']]);
+            }
+
+            $this->db->commit();
+            $this->logAction($this->db, 'Admin repaired shelter capacities via sync utility.');
+            $this->json(['success'=>true, 'message'=>'Database capacity counts synchronized successfully.']);
+        } catch(Exception $e) {
+            if ($this->db->inTransaction()) $this->db->rollBack();
+            $this->json(['success'=>false, 'message'=>$e->getMessage()], 500);
+        }
     }
 }

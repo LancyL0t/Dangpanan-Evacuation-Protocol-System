@@ -97,46 +97,50 @@ function initializeMap() {
 // SHELTER MAP MARKERS
 // =============================================
 function loadSheltersOnMap() {
-  fetch("api/get_shelters.php")
-    .then((response) => response.json())
-    .then((data) => {
-      if (data.success && data.shelters) {
-        data.shelters.forEach((shelter) => {
-          if (shelter.latitude && shelter.longitude) {
-            let color = "#4ade80"; // Green
-            if (shelter.status === "full") color = "#ef4444"; // Red
-            if (shelter.status === "limited") color = "#fbbf24"; // Yellow
+  if (window.sheltersData && Array.isArray(window.sheltersData)) {
+    window.sheltersData.forEach((shelter) => {
+      if (shelter.latitude && shelter.longitude) {
+        let color = "#4ade80"; // Green
+        
+        // Status resolution (similar to backend logic)
+        const currentCapacity = parseInt(shelter.current_capacity) || 0;
+        const maxCapacity = parseInt(shelter.max_capacity) || 0;
+        const isFull = currentCapacity >= maxCapacity;
+        
+        if (isFull) color = "#ef4444"; // Red
+        else if (currentCapacity / maxCapacity > 0.8) color = "#fbbf24"; // Yellow
 
-            const shelterIcon = L.divIcon({
-              className: "custom-shelter-marker",
-              html: `<div style="background-color: ${color}; width: 15px; height: 15px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);"></div>`,
-              iconSize: [15, 15],
-              iconAnchor: [7.5, 7.5],
-            });
+        const shelterIcon = L.divIcon({
+          className: "custom-shelter-marker",
+          html: `<div style="background-color: ${color}; width: 15px; height: 15px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);"></div>`,
+          iconSize: [15, 15],
+          iconAnchor: [7.5, 7.5],
+        });
 
-            const marker = L.marker(
-              [parseFloat(shelter.latitude), parseFloat(shelter.longitude)],
-              { icon: shelterIcon },
-            ).addTo(map);
+        const marker = L.marker(
+          [parseFloat(shelter.latitude), parseFloat(shelter.longitude)],
+          { icon: shelterIcon },
+        ).addTo(map);
 
-            marker.bindPopup(`
-                            <strong>${shelter.shelter_name}</strong><br>
-                            Capacity: ${shelter.current_capacity}/${shelter.max_capacity}<br>
-                            <button onclick="handleRequest('${shelter.shelter_id}', '${shelter.shelter_name.replace(/'/g, "\\'")}')" 
-                            style="margin-top:5px; background:#0d9488; color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer;">
-                            Request Here
-                            </button>
-                        `);
+        marker.bindPopup(`
+                        <strong>${shelter.shelter_name}</strong><br>
+                        Capacity: ${shelter.current_capacity}/${shelter.max_capacity}<br>
+                        <button onclick="handleRequest('${shelter.shelter_id}', '${shelter.shelter_name.replace(/'/g, "\\'")}')" 
+                        style="margin-top:5px; background:#0d9488; color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer;"
+                        ${isFull ? 'disabled style="opacity:0.5; margin-top:5px; padding:4px 8px;"' : ''}>
+                        ${isFull ? 'FULL' : 'Request Here'}
+                        </button>
+                    `);
 
-            shelterMarkers.push({
-              marker: marker,
-              shelter: shelter,
-            });
-          }
+        shelterMarkers.push({
+          marker: marker,
+          shelter: shelter,
         });
       }
-    })
-    .catch((error) => console.error("Error loading shelters:", error));
+    });
+  } else {
+    console.warn("No shelter data provided to map.");
+  }
 }
 
 // =============================================
@@ -1355,14 +1359,123 @@ window.executeCheckOut = async function (btn) {
     if (data.success) {
       btn.innerHTML = '<i data-lucide="check"></i> CHECKED OUT!';
       if (typeof lucide !== "undefined") lucide.createIcons();
+
+      // Show rating modal instead of immediate reload
       setTimeout(() => {
-        window.location.reload();
-      }, 900);
+        closeCheckOutModal();
+        showRatingModal(data.occupant_id, data.shelter_name);
+      }, 600);
     } else {
       throw new Error(data.message || "Check-out failed");
     }
   } catch (error) {
     alert("❌ Check-Out Error:\n\n" + error.message);
+    btn.disabled = false;
+    btn.innerHTML = originalHTML;
+    if (typeof lucide !== "undefined") lucide.createIcons();
+  }
+};
+
+// =============================================
+// HOST RATING SYSTEM
+// =============================================
+
+const starLabels = ['', 'Poor', 'Fair', 'Good', 'Very Good', 'Excellent'];
+
+window.showRatingModal = function (occupantId, shelterName) {
+  const modal = document.getElementById("ratingModal");
+  if (!modal) { window.location.reload(); return; }
+
+  document.getElementById("ratingOccupantId").value = occupantId;
+  document.getElementById("ratingShelterName").textContent = shelterName || 'this shelter';
+  document.getElementById("selectedRating").value = '0';
+  document.getElementById("reviewText").value = '';
+  document.getElementById("starLabel").textContent = 'Tap a star to rate';
+  document.getElementById("submitRatingBtn").disabled = true;
+
+  // Reset star states
+  document.querySelectorAll('.star-btn').forEach(b => b.classList.remove('active'));
+
+  modal.style.display = "flex";
+  setTimeout(() => modal.classList.add("active"), 10);
+  if (typeof lucide !== "undefined") lucide.createIcons();
+
+  // Setup star click handlers
+  setupStarSelector();
+};
+
+function setupStarSelector() {
+  const stars = document.querySelectorAll('.star-btn');
+  stars.forEach(star => {
+    star.onclick = function() {
+      const rating = parseInt(this.dataset.rating);
+      document.getElementById("selectedRating").value = rating;
+      document.getElementById("starLabel").textContent = starLabels[rating];
+      document.getElementById("submitRatingBtn").disabled = false;
+
+      stars.forEach(s => {
+        const r = parseInt(s.dataset.rating);
+        s.classList.toggle('active', r <= rating);
+      });
+    };
+
+    star.onmouseenter = function() {
+      const hoverRating = parseInt(this.dataset.rating);
+      stars.forEach(s => {
+        const r = parseInt(s.dataset.rating);
+        s.classList.toggle('hover', r <= hoverRating);
+      });
+    };
+
+    star.onmouseleave = function() {
+      stars.forEach(s => s.classList.remove('hover'));
+    };
+  });
+}
+
+window.skipRating = function () {
+  const modal = document.getElementById("ratingModal");
+  if (modal) {
+    modal.classList.remove("active");
+    setTimeout(() => { modal.style.display = "none"; }, 300);
+  }
+  window.location.reload();
+};
+
+window.submitHostRating = async function (btn) {
+  const occupantId = document.getElementById("ratingOccupantId").value;
+  const rating = document.getElementById("selectedRating").value;
+  const reviewText = document.getElementById("reviewText").value;
+
+  if (!rating || rating === '0') return;
+
+  const originalHTML = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<i data-lucide="loader-2" class="spin"></i> SUBMITTING...';
+  if (typeof lucide !== "undefined") lucide.createIcons();
+
+  try {
+    const response = await fetch("index.php?route=submit_rating", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        occupant_id: parseInt(occupantId),
+        rating: parseInt(rating),
+        review_text: reviewText
+      }),
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      btn.innerHTML = '<i data-lucide="check"></i> THANK YOU!';
+      if (typeof lucide !== "undefined") lucide.createIcons();
+      setTimeout(() => { window.location.reload(); }, 900);
+    } else {
+      throw new Error(data.message || "Failed to submit rating");
+    }
+  } catch (error) {
+    alert("❌ Rating Error:\n\n" + error.message);
     btn.disabled = false;
     btn.innerHTML = originalHTML;
     if (typeof lucide !== "undefined") lucide.createIcons();
@@ -1445,7 +1558,7 @@ const filterState = {
 
 function setupSearchAndFilter() {
   const searchInput = document.getElementById("shelterSearch");
-  const filterBtn = document.querySelector(".filter-btn");
+  const filterBtn = document.querySelector(".filter-btn:not(#nearestShelterBtn)");
   const shelterFeed = document.querySelector(".shelter-feed");
 
   if (!searchInput || !filterBtn || !shelterFeed) return;
@@ -1851,9 +1964,88 @@ function updateResultsCount(count) {
 
 /** Show a small badge dot on the filter button when non-default filters are active */
 function updateFilterBadge() {
-  const filterBtn = document.querySelector(".filter-btn");
+  const filterBtn = document.querySelector(".filter-btn:not(#nearestShelterBtn)");
   if (!filterBtn) return;
   const isActive =
     filterState.status !== "all" || filterState.sort !== "default";
   filterBtn.classList.toggle("filter-btn--has-active", isActive);
+}
+
+// =============================================
+// NEAREST SHELTER FUNCTIONALITY
+// =============================================
+function findNearestShelter() {
+  if (!currentUserLocation) {
+      alert("We cannot determine your location. Please ensure location services are enabled in your browser.");
+      return;
+  }
+  
+  if (!window.sheltersData || window.sheltersData.length === 0) {
+      alert("No shelters available.");
+      return;
+  }
+  
+  let nearestShelter = null;
+  let minDistance = Infinity;
+  
+  window.sheltersData.forEach(shelter => {
+      if (!shelter.latitude || !shelter.longitude) return;
+      
+      // Only consider open shelters
+      const currentCapacity = parseInt(shelter.current_capacity) || 0;
+      const maxCapacity = parseInt(shelter.max_capacity) || 0;
+      if (currentCapacity >= maxCapacity) return;
+      
+      const dist = calculateDistance(
+          currentUserLocation.lat, 
+          currentUserLocation.lng, 
+          parseFloat(shelter.latitude), 
+          parseFloat(shelter.longitude)
+      );
+      
+      if (dist < minDistance) {
+          minDistance = dist;
+          nearestShelter = shelter;
+      }
+  });
+  
+  if (nearestShelter) {
+      // Find the marker
+      const markerObj = shelterMarkers.find(m => m.shelter.shelter_id === nearestShelter.shelter_id);
+      if (markerObj) {
+          map.setView([parseFloat(nearestShelter.latitude), parseFloat(nearestShelter.longitude)], 16);
+          markerObj.marker.openPopup();
+          
+          // Optionally filter the feed list to show exactly this nearest shelter
+          const searchInput = document.getElementById("shelterSearch");
+          if (searchInput) {
+              searchInput.value = nearestShelter.shelter_name;
+              // Trigger filter input event
+              searchInput.dispatchEvent(new Event("input"));
+              
+              // Scroll down to the list
+              document.querySelector('.shelter-feed').scrollIntoView({ behavior: 'smooth' });
+          }
+      }
+  } else {
+      alert("There are no open shelters available nearby.");
+  }
+}
+
+// Haversine distance formula to calculate distance between two coordinates
+function calculateDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Radius of the earth in km
+  const dLat = deg2rad(lat2 - lat1);  
+  const dLon = deg2rad(lon2 - lon1); 
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
+    Math.sin(dLon/2) * Math.sin(dLon/2)
+    ; 
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+  return R * c; // Distance in km
+}
+
+function deg2rad(deg) {
+  return deg * (Math.PI/180);
 }

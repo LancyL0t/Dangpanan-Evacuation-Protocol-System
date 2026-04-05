@@ -1,9 +1,10 @@
 <?php
 // controllers/ShelterController.php
 
+require_once 'controllers/BaseController.php';
 require_once 'models/ShelterModel.php';
 
-class ShelterController {
+class ShelterController extends BaseController {
     private $db;
     private $shelterModel;
 
@@ -63,6 +64,7 @@ class ShelterController {
             ];
 
             if ($this->shelterModel->create($shelterData)) {
+                $this->logAction($this->db, "Admin created shelter: {$data['shelter_name']}");
                 echo json_encode(['success' => true, 'message' => 'Shelter created successfully']);
             } else {
                 echo json_encode(['success' => false, 'message' => 'Failed to create shelter']);
@@ -93,6 +95,7 @@ class ShelterController {
 
         try {
             if ($this->shelterModel->updateById($data['shelter_id'], $data)) {
+                $this->logAction($this->db, "Admin updated shelter ID: #{$data['shelter_id']}");
                 echo json_encode(['success' => true, 'message' => 'Shelter updated successfully']);
             } else {
                 echo json_encode(['success' => false, 'message' => 'Failed to update shelter']);
@@ -123,6 +126,7 @@ class ShelterController {
 
         try {
             if ($this->shelterModel->delete($data['shelter_id'])) {
+                $this->logAction($this->db, "Admin deleted shelter ID: #{$data['shelter_id']}");
                 echo json_encode(['success' => true, 'message' => 'Shelter deleted successfully']);
             } else {
                 echo json_encode(['success' => false, 'message' => 'Failed to delete shelter']);
@@ -515,6 +519,9 @@ public function evacueeDashboard() {
         }
 
         $user_id = $_SESSION['user_id'];
+        
+        $userModel = new UserModel($this->db);
+        $user = $userModel->getById($user_id);
 
         $stmt = $this->db->prepare("SELECT * FROM shelter WHERE host_id = ?");
         $stmt->execute([$user_id]);
@@ -546,6 +553,12 @@ public function evacueeDashboard() {
         $approvedStmt->execute([$shelter['shelter_id']]);
         $approvedRequests = $approvedStmt->fetchAll(PDO::FETCH_ASSOC);
         $approvedCount = count($approvedRequests);
+
+        // Evacuee History (for HISTORY tab)
+        require_once 'models/OccupantModel.php';
+        $occupantModel = new OccupantModel($this->db);
+        $evacueeHistory = $occupantModel->getHostEvacueeHistory($shelter['shelter_id']);
+        $hostRating = $occupantModel->getAverageRating($user_id);
 
         require 'views/shelter/host_portal.php';
     }
@@ -869,6 +882,49 @@ public function evacueeDashboard() {
             $occupantModel = new OccupantModel($this->db);
             
             $result = $occupantModel->checkIn($approval_code, $shelter_id);
+            
+            // ── FEAT 2: AUTOMATED EMERGENCY SMS ON CHECK-IN ──
+            if ($result['success'] && !empty($result['evacuee']['emergency_contact'])) {
+                $phone = $result['evacuee']['emergency_contact'];
+                $evacueeName = $result['evacuee']['name'];
+                $address = $result['shelter_location'] ?? 'a safe shelter';
+                
+                // Format for PhilSMS (must be 639...)
+                $formattedPhone = preg_replace('/\D/', '', $phone);
+                if (strpos($formattedPhone, '09') === 0) {
+                    $formattedPhone = '63' . substr($formattedPhone, 1);
+                }
+                
+                if (preg_match('/^639\d{9}$/', $formattedPhone)) {
+                    $apiToken = '1823|CDbi6fDLpBbPjU4jOkslVWiyo7l4ZzPLJZhiEpyn0603366d'; 
+                    $senderId = 'PhilSMS';
+                    $message  = "DANGPANAN ALERT: Your relative {$evacueeName} has safely checked into a verified DANGPANAN shelter at: {$address}.";
+                    
+                    $payload = [
+                        'recipient' => $formattedPhone,
+                        'sender_id' => $senderId,
+                        'type'      => 'plain',
+                        'message'   => $message,
+                    ];
+                    
+                    $ch = curl_init('https://dashboard.philsms.com/api/v3/sms/send');
+                    curl_setopt_array($ch, [
+                        CURLOPT_HTTPHEADER     => [
+                            "Authorization: Bearer " . $apiToken,
+                            "Content-Type: application/json",
+                            "Accept: application/json",
+                        ],
+                        CURLOPT_POST           => true,
+                        CURLOPT_RETURNTRANSFER => true,
+                        CURLOPT_POSTFIELDS     => json_encode($payload),
+                        CURLOPT_TIMEOUT        => 3, // Don't hang the check-in response if SMS API is slow
+                    ]);
+                    
+                    curl_exec($ch);
+                    curl_close($ch);
+                }
+            }
+
             echo json_encode($result);
         } catch (Exception $e) {
             echo json_encode(['success' => false, 'message' => $e->getMessage()]);
@@ -969,6 +1025,83 @@ public function evacueeDashboard() {
             
             $result = $occupantModel->removeOccupant($occupant_id, $shelter_id);
             echo json_encode($result);
+        } catch (Exception $e) {
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        }
+        exit();
+    }
+
+    /**
+     * Submit host rating after checkout
+     */
+    public function submitRating() {
+        header('Content-Type: application/json');
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            http_response_code(405);
+            echo json_encode(['success' => false, 'message' => 'Method not allowed']);
+            exit();
+        }
+
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        if (!isset($_SESSION['user_id'])) {
+            echo json_encode(['success' => false, 'message' => 'Unauthorized']);
+            exit();
+        }
+
+        $data = json_decode(file_get_contents("php://input"), true);
+
+        if (empty($data['occupant_id']) || empty($data['rating'])) {
+            echo json_encode(['success' => false, 'message' => 'Missing required fields']);
+            exit();
+        }
+
+        try {
+            require_once 'models/OccupantModel.php';
+            $occupantModel = new OccupantModel($this->db);
+
+            $result = $occupantModel->submitRating([
+                'occupant_id' => (int)$data['occupant_id'],
+                'user_id'     => $_SESSION['user_id'],
+                'rating'      => (int)$data['rating'],
+                'review_text' => $data['review_text'] ?? ''
+            ]);
+
+            echo json_encode($result);
+        } catch (Exception $e) {
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        }
+        exit();
+    }
+
+    /**
+     * Get request progress for an evacuee
+     */
+    public function getRequestProgress() {
+        header('Content-Type: application/json');
+        
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        if (!isset($_SESSION['user_id'])) {
+            echo json_encode(['success' => false, 'message' => 'Unauthorized']);
+            exit();
+        }
+
+        $request_id = $_GET['request_id'] ?? null;
+        if (!$request_id) {
+            echo json_encode(['success' => false, 'message' => 'Request ID required']);
+            exit();
+        }
+
+        try {
+            require_once 'models/RequestModel.php';
+            $requestModel = new RequestModel($this->db);
+            $progress = $requestModel->getRequestProgress($request_id, $_SESSION['user_id']);
+            
+            if ($progress) {
+                echo json_encode(['success' => true, 'progress' => $progress]);
+            } else {
+                echo json_encode(['success' => false, 'message' => 'Progress not found']);
+            }
         } catch (Exception $e) {
             echo json_encode(['success' => false, 'message' => $e->getMessage()]);
         }
