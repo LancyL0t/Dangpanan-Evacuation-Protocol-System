@@ -40,6 +40,11 @@ $logoHref = ($userRole === 'Admin') ? 'index.php?route=admin_landing' : 'index.p
                     <i data-lucide="bell"></i>
                     <span>Alerts</span>
                 </a>
+                <a href="index.php?route=messages" class="nav-link" style="position:relative;">
+                    <i data-lucide="message-circle"></i>
+                    <span>Messages</span>
+                    <span class="nav-chat-badge" id="navChatBadge" style="display:none;"></span>
+                </a>
             <?php endif; ?>
         </nav>
 
@@ -110,6 +115,9 @@ $logoHref = ($userRole === 'Admin') ? 'index.php?route=admin_landing' : 'index.p
             </a>
             <a href="index.php?route=alerts">
                 <i data-lucide="bell"></i> Emergency Alerts
+            </a>
+            <a href="index.php?route=messages">
+                <i data-lucide="message-circle"></i> Messages
             </a>
         <?php endif; ?>
 

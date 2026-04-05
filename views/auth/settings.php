@@ -114,7 +114,18 @@
                                 class="form-input"
                                 value="<?= htmlspecialchars($_POST['phone'] ?? $userObj->getPhoneNumber()) ?>"
                                 placeholder="+63 9XX XXX XXXX" maxlength="15">
-                            <span class="form-hint">Used for emergency contact notifications</span>
+                        </div>
+                    </div>
+                    
+                    <div class="form-grid" style="margin-top:.85rem;">
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label class="form-label" for="emergency_contact">Emergency Contact <span class="required">*</span></label>
+                            <input
+                                type="tel" id="emergency_contact" name="emergency_contact"
+                                class="form-input"
+                                value="<?= htmlspecialchars($_POST['emergency_contact'] ?? $userObj->getEmergencyContact()) ?>"
+                                placeholder="+63 9XX XXX XXXX" maxlength="15" required>
+                            <span class="form-hint">This number will receive a "Safe Check-in" SMS automatically when you arrive at a shelter.</span>
                         </div>
                     </div>
 

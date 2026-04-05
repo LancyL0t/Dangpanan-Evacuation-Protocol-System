@@ -1,6 +1,9 @@
-<?php 
-require_once 'config/auth_guard.php'; 
-protect_page(); 
+<?php
+
+require_once 'config/auth_guard.php';
+
+protect_page();
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -14,6 +17,7 @@ protect_page();
     <link rel="stylesheet" href="assets/css/footer.css">
     <link rel="stylesheet" href="assets/css/nav.css">
     <link rel="stylesheet" href="assets/css/progress_tracker.css">
+    <link rel="stylesheet" href="assets/css/chat.css">
     
     <!-- Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -53,7 +57,8 @@ protect_page();
                             <i data-lucide="clipboard-list"></i>
                             <span>VIEW MY REQUESTS</span>
                         </button>
-                        <?php endif; ?>
+                        <?php
+endif; ?>
                         
                         <button class="sos-btn" id="sosTrigger">
                             <i data-lucide="alert-circle"></i>
@@ -82,7 +87,8 @@ protect_page();
                         </div>
                     </div>
                 </div>
-                <?php endif; ?>
+                <?php
+endif; ?>
 
                 <!-- Metrics Grid -->
                 <section class="metrics-grid">
@@ -152,6 +158,10 @@ protect_page();
                                    class="search-input" 
                                    id="shelterSearch">
                         </div>
+                        <button class="filter-btn" id="nearestShelterBtn" onclick="findNearestShelter()" style="background: #3b82f6; color: white; border-color: #2563eb; margin-right: 0.5rem;" title="Find nearest shelter based on your GPS">
+                            <i data-lucide="navigation"></i>
+                            NEAREST SHELTER
+                        </button>
                         <button class="filter-btn">
                             <i data-lucide="sliders-horizontal"></i>
                             FILTER
@@ -163,7 +173,7 @@ protect_page();
                 <section class="shelter-feed">
                     <h2 class="section-title with-margin">Available Shelters</h2>
                     
-                    <?php foreach($sheltersData as $s): ?>
+                    <?php foreach ($sheltersData as $s): ?>
                     <div class="shelter-row-card">
                         <div class="shelter-main">
                             <div class="shelter-icon-box">
@@ -181,9 +191,9 @@ protect_page();
                         
                         <div class="shelter-meta">
                             <div class="capacity-info">
-                                <?php 
-                                    $isFull = $s['current_capacity'] >= $s['max_capacity']; 
-                                ?>
+                                <?php
+    $isFull = $s['current_capacity'] >= $s['max_capacity'];
+?>
                                 <span class="status-badge <?php echo $isFull ? 'full' : 'open'; ?>">
                                     <?php echo $isFull ? 'FULL' : 'OPEN'; ?>
                                 </span>
@@ -193,31 +203,37 @@ protect_page();
                             </div>
                             
                             <button class="btn-request-action" 
-                            <?php 
-                            $isDisabled = $s['is_full'] || (isset($hostStatus) && $hostStatus === 'active_host') || $checkedInShelter;
-                            echo $isDisabled ? 'disabled' : ''; 
-                            ?> 
+                            <?php
+    $isDisabled = $s['is_full'] || (isset($hostStatus) && $hostStatus === 'active_host') || $checkedInShelter;
+    echo $isDisabled ? 'disabled' : '';
+?> 
                             onclick="handleRequest('<?php echo htmlspecialchars($s['shelter_id']); ?>', '<?php echo htmlspecialchars($s['shelter_name'], ENT_QUOTES); ?>')"
                             <?php if (isset($hostStatus) && $hostStatus === 'active_host'): ?>
                                 title="You must relinquish host status first"
-                            <?php elseif ($checkedInShelter): ?>
+                            <?php
+    elseif ($checkedInShelter): ?>
                                 title="Please check out from your current shelter first"
-                            <?php endif; ?>>
-                        <?php 
-                        if (isset($hostStatus) && $hostStatus === 'active_host') {
-                            echo 'HOST STATUS ACTIVE';
-                        } elseif ($checkedInShelter) {
-                            echo 'CHECKED IN';
-                        } elseif ($s['is_full']) {
-                            echo 'SHELTER FULL';
-                        } else {
-                            echo 'REQUEST ENTRY';
-                        }
-                        ?>
+                            <?php
+    endif; ?>>
+                        <?php
+    if (isset($hostStatus) && $hostStatus === 'active_host') {
+        echo 'HOST STATUS ACTIVE';
+    }
+    elseif ($checkedInShelter) {
+        echo 'CHECKED IN';
+    }
+    elseif ($s['is_full']) {
+        echo 'SHELTER FULL';
+    }
+    else {
+        echo 'REQUEST ENTRY';
+    }
+?>
                     </button>
                         </div>
                     </div>
-                    <?php endforeach; ?>
+                    <?php
+endforeach; ?>
 
                     <!-- Pagination (rendered by JS when shelters > 10) -->
                     <div id="shelterPagination" class="shelter-pagination" style="display:none;"></div>
@@ -259,10 +275,15 @@ protect_page();
                 <i data-lucide="log-out" style="width: 16px;"></i>
                 CHECK OUT
             </button>
+            <a href="index.php?route=messages" class="btn-chat" style="width: 100%; justify-content: center; margin-top: 0.5rem; padding: 0.75rem; font-size: 0.8rem;">
+                <i data-lucide="message-circle"></i>
+                CHAT WITH HOST
+            </a>
         </div>
     </div>
 
-    <?php elseif (isset($approvedRequest) && $approvedRequest): ?>
+    <?php
+elseif (isset($approvedRequest) && $approvedRequest): ?>
 
     <!-- QR CODE HIGHLIGHT ABOVE EMERGENCY CONTACTS -->
     <div class="sidebar-panel" style="background: linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 100%); border: none; box-shadow: 0 4px 20px rgba(29,78,216,0.4);">
@@ -288,9 +309,25 @@ protect_page();
                 <i data-lucide="home" style="width: 12px;"></i>
                 <?php echo htmlspecialchars($approvedRequest['shelter_name']); ?>
             </p>
+            <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-top: 1rem;">
+                <a href="index.php?route=generate_pass&request_id=<?php echo $approvedRequest['id']; ?>" 
+                   target="_blank"
+                   class="btn-download-pdf" 
+                   style="width: 90%; justify-content: center; margin: 0 auto; padding: 0.75rem; font-size: 0.8rem; background: white; color: #1e3a8a; border: none; border-radius: 8px; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; text-decoration: none; transition: transform 0.2s;">
+                    <i data-lucide="file-down"></i>
+                    DOWNLOAD PDF PASS
+                </a>
+                <a href="index.php?route=chat&request_id=<?php echo $approvedRequest['id']; ?>" 
+                   class="btn-chat" 
+                   style="width: 90%; justify-content: center; margin: 0 auto; padding: 0.75rem; font-size: 0.8rem; border-color: rgba(147,197,253,0.4); color: #93c5fd; background: rgba(147,197,253,0.1);">
+                    <i data-lucide="message-circle"></i>
+                    CHAT WITH HOST
+                </a>
+            </div>
         </div>
     </div>
-    <?php endif; ?>
+    <?php
+endif; ?>
 
     <div class="sidebar-panel">
         <h3 class="panel-title">Emergency Contacts</h3>
@@ -412,7 +449,8 @@ protect_page();
                         </button>
                     </div>
                 </div>
-                <?php endif; ?>
+                <?php
+endif; ?>
             </aside>
         </div>
     </main>
@@ -561,5 +599,77 @@ protect_page();
     </div>
 </div>
 
+<!-- HOST RATING MODAL (shown after checkout) -->
+<div id="ratingModal" class="modal-overlay" style="display: none;">
+    <div class="protocol-modal" style="max-width: 480px;">
+        <div class="modal-header" style="background: linear-gradient(135deg, #fef3c7 0%, #ffffff 100%); border-bottom: 2px solid #f59e0b;">
+            <h3 class="modal-title" style="color: #92400e;">
+                <i data-lucide="star" style="color: #f59e0b;"></i>
+                Rate Your Host
+            </h3>
+            <button type="button" class="btn-close-icon" onclick="skipRating()">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+
+        <div class="modal-body" style="padding: 1.75rem; text-align: center;">
+            <p style="font-size: 0.95rem; color: #475569; margin-bottom: 0.5rem;">
+                How was your stay at <strong id="ratingShelterName"></strong>?
+            </p>
+            <p style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 1.5rem;">
+                Your feedback helps future evacuees make informed decisions.
+            </p>
+
+            <!-- Star Selector -->
+            <div class="star-selector" id="starSelector">
+                <button type="button" class="star-btn" data-rating="1" title="Poor">
+                    <i data-lucide="star"></i>
+                </button>
+                <button type="button" class="star-btn" data-rating="2" title="Fair">
+                    <i data-lucide="star"></i>
+                </button>
+                <button type="button" class="star-btn" data-rating="3" title="Good">
+                    <i data-lucide="star"></i>
+                </button>
+                <button type="button" class="star-btn" data-rating="4" title="Very Good">
+                    <i data-lucide="star"></i>
+                </button>
+                <button type="button" class="star-btn" data-rating="5" title="Excellent">
+                    <i data-lucide="star"></i>
+                </button>
+            </div>
+            <p class="star-label" id="starLabel" style="font-size: 0.85rem; color: #64748b; margin: 0.75rem 0 1.25rem; min-height: 1.2em;">
+                Tap a star to rate
+            </p>
+
+            <!-- Review Text -->
+            <textarea id="reviewText" class="protocol-input" 
+                      placeholder="Share your experience (optional)..." 
+                      style="height: 80px; resize: none; text-align: left; font-size: 0.875rem; margin-bottom: 1.25rem;"></textarea>
+
+            <input type="hidden" id="ratingOccupantId" value="">
+            <input type="hidden" id="selectedRating" value="0">
+
+            <div class="modal-actions" style="gap: 0.75rem;">
+                <button type="button" class="btn-cancel" onclick="skipRating()" style="flex: 1;">
+                    SKIP
+                </button>
+                <button type="button" id="submitRatingBtn" class="btn-confirm" 
+                        onclick="submitHostRating(this)"
+                        style="flex: 1; background: #f59e0b; border-color: #d97706;" disabled>
+                    <i data-lucide="star"></i>
+                    SUBMIT RATING
+                </button>
+            </div>
+        </div>
+    </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    window.sheltersData = <?php echo json_encode($sheltersData); ?>;
+</script>
 </body>
 </html>

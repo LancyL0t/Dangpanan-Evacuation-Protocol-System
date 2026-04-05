@@ -5,6 +5,8 @@ require_once 'controllers/UserController.php';
 require_once 'controllers/ShelterController.php';
 require_once 'controllers/AlertController.php';
 require_once 'controllers/OtpController.php';
+require_once 'controllers/ChatController.php';
+require_once 'controllers/ReportController.php';
 
 SessionManager::start();
 
@@ -13,7 +15,9 @@ $route = $_GET['route'] ?? 'home';
 $userController    = new UserController($pdo);
 $shelterController = new ShelterController($pdo);
 $alertController   = new AlertController($pdo);
-$otpController     = new OtpController();
+$otpController     = new OtpController($pdo);
+$chatController    = new ChatController($pdo);
+$reportController  = new ReportController($pdo);
 
 switch ($route) {
     case 'home':
@@ -34,6 +38,12 @@ switch ($route) {
     case 'logout':         $userController->handleLogout(); break;
     case 'otp_send':       $otpController->send(); break;
     case 'otp_verify':     $otpController->verify(); break;
+    
+    // Password reset routing
+    case 'forgot_password':       include 'views/auth/forgot_password.php'; break;
+    case 'forgot_send_otp':       $otpController->sendPasswordReset(); break;
+    case 'forgot_verify_otp':     $otpController->verifyPasswordReset(); break;
+    case 'reset_password_submit': $userController->resetPasswordSubmit(); break;
 
     case 'admin_landing':
     case 'admin':
@@ -72,12 +82,26 @@ switch ($route) {
     case 'admin-force-decline':       $alertController->forceDeclineRequest(); break;
 
     // Occupants admin
-    case 'admin-get-occupants':   $alertController->getAllOccupants(); break;
-    case 'admin-force-checkout':  $alertController->forceCheckout(); break;
+    case 'admin-get-occupants':       $alertController->getAllOccupants(); break;
+    case 'admin-force-checkout':      $alertController->forceCheckout(); break;
+    case 'admin-get-shelter-stats':   $alertController->getShelterStatsJson(); break;
+    case 'admin-repair-capacities':    $alertController->repairCapacities(); break;
 
     // Logs & Export
     case 'admin-get-logs':  $alertController->getLogs(); break;
     case 'admin-export':    $alertController->exportCSV(); break;
+
+    // PDF Reports
+    case 'generate_cert':       $reportController->generateHostCertification($_GET['user_id'] ?? null); break;
+    case 'generate_pass':       $reportController->generateEvacuationPass($_GET['request_id'] ?? null); break;
+    case 'system_summary':      $reportController->generateSystemSummary(); break;
+    case 'report_users':        $reportController->generateUsersReport(); break;
+    case 'report_alerts':       $reportController->generateAlertsReport(); break;
+    case 'report_verification': $reportController->generateVerificationReport(); break;
+    case 'report_requests':     $reportController->generateRequestsReport(); break;
+    case 'report_occupants':    $reportController->generateOccupantsReport($_GET['shelter_id'] ?? null); break;
+    case 'report_logs':         $reportController->generateLogsReport(); break;
+    case 'report_shelters':     $reportController->generateSheltersReport(); break;
 
     // Evacuee portal
     case 'evacuee_portal': $shelterController->evacueeDashboard(); break;
@@ -130,6 +154,14 @@ switch ($route) {
     case 'get_occupants':         $shelterController->getOccupants(); break;
     case 'remove_occupant':       $shelterController->removeOccupant(); break;
     case 'evacuee_checkout':      $shelterController->evacueeCheckOut(); break;
+
+    // Chat System
+    case 'chat':                  $chatController->showChatPage(); break;
+    case 'messages':              $chatController->showMessagesPage(); break;
+    case 'chat_get_messages':     $chatController->getMessages(); break;
+    case 'chat_send_message':     $chatController->sendMessage(); break;
+    case 'chat_unread_count':     $chatController->getUnreadCount(); break;
+    case 'submit_rating':         $shelterController->submitRating(); break;
 
     case 'relinquish-host-status': $userController->relinquishHostStatus(); break;
     case 'get-host-status':        $userController->getHostStatus(); break;

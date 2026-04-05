@@ -154,6 +154,12 @@
                     </p>
                 </div>
                 <div class="profile-field-group">
+                    <label class="profile-field-label"><i data-lucide="bell-ring"></i> Emergency Contact</label>
+                    <p class="profile-field-value <?php echo !empty($userData['emergency_contact']) ? 'real' : 'missing'; ?>">
+                        <?php echo !empty($userData['emergency_contact']) ? htmlspecialchars($userData['emergency_contact']) : 'Not provided'; ?>
+                    </p>
+                </div>
+                <div class="profile-field-group">
                     <label class="profile-field-label"><i data-lucide="shield-check"></i> Account Role</label>
                     <p class="profile-field-value real">
                         <?php echo htmlspecialchars($role); ?>
@@ -174,6 +180,118 @@
                 </div>
             </div>
         </section>
+
+        <?php if ($role !== 'Admin'): ?>
+        <!-- Shelter History -->
+        <section class="sidebar-panel profile-info-section">
+            <h3 class="history-section-title">
+                <i data-lucide="history"></i> Shelter History
+            </h3>
+            
+            <?php if (!empty($shelterHistory)): ?>
+                <div class="shelter-feed" style="margin-top: 1rem;">
+                    <?php foreach ($shelterHistory as $history): 
+                        $ci = new DateTime($history['checked_in_at']);
+                        $coStr = $history['checked_out_at'] ? (new DateTime($history['checked_out_at']))->format('M j, Y, h:i A') : '—';
+                        
+                        // Calculate duration if checked out
+                        $durationStr = '';
+                        if ($history['checked_out_at']) {
+                            $co = new DateTime($history['checked_out_at']);
+                            $diff = $ci->diff($co);
+                            if ($diff->d > 0) $durationStr = $diff->d . 'd ' . $diff->h . 'h';
+                            elseif ($diff->h > 0) $durationStr = $diff->h . 'h ' . $diff->i . 'm';
+                            else $durationStr = $diff->i . 'm';
+                        }
+                        
+                        $hostName = $history['host_first'] . ' ' . $history['host_last'];
+                        $initials = strtoupper(substr($history['shelter_name'], 0, 2));
+                    ?>
+                    <div class="list-item history-card" style="display: flex; flex-direction: column; gap: 12px; position: relative; background: var(--bg-secondary); border: 1px solid var(--border-light); border-radius: var(--radius-lg); padding: 1.25rem; box-shadow: var(--shadow-sm);">
+                        
+                        <!-- Top Row: Shelter Info & Status -->
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%;">
+                            <div class="user-row" style="margin-bottom: 0; display: flex; gap: 1rem; align-items: center;">
+                                <div class="avatar" style="background: var(--primary-red-light); color: var(--primary-red); width: 42px; height: 42px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1rem; flex-shrink: 0;">
+                                    <?php echo $initials; ?>
+                                </div>
+                                <div class="u-info">
+                                    <h4 style="margin: 0; font-size: 1rem; color: var(--text-primary); font-weight: 700;"><?php echo htmlspecialchars($history['shelter_name']); ?></h4>
+                                    <p class="evacuee-meta" style="margin: 4px 0 0; font-size: 0.75rem; color: var(--text-muted); display: flex; gap: 10px; align-items: center;">
+                                        <span><i data-lucide="user" style="width:12px; height:12px; vertical-align: -2px;"></i> Host: <?php echo htmlspecialchars($hostName); ?></span>
+                                        <span><i data-lucide="map-pin" style="width:12px; height:12px; vertical-align: -2px;"></i> <?php echo htmlspecialchars($history['location']); ?></span>
+                                    </p>
+                                </div>
+                            </div>
+                            <div style="text-align: right;">
+                                <span class="status-pill <?php echo $history['status']; ?>" style="font-size: 0.65rem; padding: 4px 10px; border-radius: 99px;">
+                                    <?php echo strtoupper(str_replace('_', ' ', $history['status'])); ?>
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Middle Row: Timeline -->
+                        <div style="background: var(--bg-tertiary); border-radius: 8px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border-light);">
+                            <div style="flex: 1;">
+                                <div style="font-size: 0.65rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 2px;">Check-In</div>
+                                <div style="font-size: 0.8rem; font-weight: 600; color: var(--text-primary);"><?php echo $ci->format('M j, Y'); ?></div>
+                                <div style="font-size: 0.75rem; color: var(--text-muted);"><?php echo $ci->format('h:i A'); ?></div>
+                            </div>
+                            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0 15px;">
+                                <div style="height: 1px; background: #cbd5e1; width: 40px; position: relative; display: flex; align-items: center; justify-content: center;">
+                                    <i data-lucide="arrow-right" style="width:14px; height:14px; color: #94a3b8; background: var(--bg-tertiary); padding: 0 4px;"></i>
+                                </div>
+                                <?php if ($durationStr): ?>
+                                    <span style="font-size: 0.65rem; font-weight: 700; color: #2563eb; background: #eff6ff; padding: 2px 8px; border-radius: 6px; margin-top: 6px;">
+                                        <?php echo $durationStr; ?>
+                                    </span>
+                                <?php endif; ?>
+                            </div>
+                            <div style="flex: 1; text-align: right;">
+                                <div style="font-size: 0.65rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 2px;">Check-Out</div>
+                                <div style="font-size: 0.8rem; font-weight: 600; color: var(--text-primary);">
+                                    <?php echo $history['checked_out_at'] ? (new DateTime($history['checked_out_at']))->format('M j, Y') : '—'; ?>
+                                </div>
+                                <div style="font-size: 0.75rem; color: var(--text-muted);">
+                                    <?php echo $history['checked_out_at'] ? (new DateTime($history['checked_out_at']))->format('h:i A') : ''; ?>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Bottom Row: My Rating -->
+                        <div style="display: flex; align-items: center; gap: 12px; padding-top: 4px; border-top: 1px dashed var(--border-light); margin-top: 2px;">
+                            <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted);">My Rating:</div>
+                            <?php if ($history['rating']): ?>
+                                <div class="stars-display" style="gap: 4px;">
+                                    <?php for ($i=1; $i<=5; $i++): 
+                                        if ($i <= $history['rating']): ?>
+                                            <i data-lucide="star" style="width: 16px; height: 16px; color: #f59e0b; fill: #f59e0b;"></i>
+                                        <?php else: ?>
+                                            <i data-lucide="star" style="width: 16px; height: 16px; color: #e2e8f0;"></i>
+                                        <?php endif; 
+                                    endfor; ?>
+                                </div>
+                                <?php if (!empty($history['review_text'])): ?>
+                                    <div style="flex: 1; font-size: 0.8rem; color: #475569; font-style: italic; background: #fffbeb; padding: 6px 12px; border-radius: 6px; border: 1px solid #fef3c7; border-left: 3px solid #f59e0b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="<?php echo htmlspecialchars($history['review_text']); ?>">
+                                        "<?php echo htmlspecialchars($history['review_text']); ?>"
+                                    </div>
+                                <?php endif; ?>
+                            <?php else: ?>
+                                <span style="font-size: 0.75rem; color: #94a3b8; font-style: italic;">No rating provided</span>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+            <?php else: ?>
+                <div class="history-empty">
+                    <i data-lucide="clock"></i>
+                    <h4>No Shelter History</h4>
+                    <p>You haven't checked into any shelters yet.</p>
+                </div>
+            <?php endif; ?>
+        </section>
+        <?php endif; ?>
 
         <?php if ($isHost && $hostShelterInfo): ?>
         <!-- Shelter Information (host only) -->

@@ -11,6 +11,7 @@ protect_page();
     <title>DANGPANAN | Host Command</title>
     <link rel="stylesheet" href="assets/css/nav.css">
     <link rel="stylesheet" href="assets/css/host.css">    
+    <link rel="stylesheet" href="assets/css/chat.css">
     <link rel="stylesheet" href="assets/css/footer.css">
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
@@ -29,7 +30,15 @@ protect_page();
                     <?php echo htmlspecialchars($shelter['location'] ?? ''); ?>
                 </p>
             </div>
-            <div class="header-actions">
+            <div class="header-actions" style="display: flex; gap: 0.75rem;">
+                <!-- Host Certification Access -->
+                <a href="index.php?route=generate_cert&user_id=<?php echo $_SESSION['user_id']; ?>" 
+                   target="_blank"
+                   class="sos-btn" 
+                   style="background: var(--primary); color: white; border: none; padding: 0 1.2rem; display: flex; align-items: center; gap: 0.5rem; text-decoration: none; font-weight: 600; font-size: 0.85rem; height: 42px;">
+                    <i data-lucide="award"></i> MY CERTIFICATE
+                </a>
+                
                 <button class="sos-btn" onclick="openQrScannerModal()">
                     <i data-lucide="qr-code"></i> SCAN QR
                 </button>
@@ -135,6 +144,9 @@ protect_page();
                         <button class="adm-tab-btn occupants" onclick="switchTab('panel-occupants', this); loadOccupants();">
                             <i data-lucide="users"></i> OCCUPANTS <span id="occupantCountBadge" class="count-badge">0</span>
                         </button>
+                        <button class="adm-tab-btn history" onclick="switchTab('panel-history', this)">
+                            <i data-lucide="history"></i> HISTORY
+                        </button>
                     </div>
                     
                     <!-- PENDING TAB -->
@@ -217,6 +229,10 @@ protect_page();
                                         </div>
                                         
                                         <div class="action-row">
+                                            <a href="index.php?route=chat&request_id=<?php echo $request['id']; ?>" class="btn-chat">
+                                                <i data-lucide="message-circle"></i>
+                                                CHAT
+                                            </a>
                                             <button class="btn-base btn-checkin" onclick="initiateCheckIn('<?php echo $request['approval_code']; ?>')">
                                                 <i data-lucide="user-check"></i>
                                                 CHECK IN NOW
@@ -318,6 +334,133 @@ protect_page();
                                     <p>Loading occupants...</p>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- HISTORY TAB -->
+                    <div id="panel-history" class="adm-tab-panel">
+                        <div class="tab-list-container">
+                            <div class="card-header-strip" style="background: transparent; border-bottom: none; padding: 0 0 1rem 0; justify-content: space-between; display: flex;">
+                                <h4 class="tab-section-label" style="margin: 0; padding: 0;">Past Evacuees</h4>
+                                <?php if (isset($hostRating) && $hostRating['total_ratings'] > 0): ?>
+                                <div class="stars-display" title="<?php echo $hostRating['avg_rating']; ?> / 5 based on <?php echo $hostRating['total_ratings']; ?> ratings">
+                                    <?php 
+                                    $avgInfo = round($hostRating['avg_rating']); 
+                                    for ($i=1; $i<=5; $i++): 
+                                        if ($i <= $avgInfo): ?>
+                                            <i data-lucide="star" class="star-filled"></i>
+                                        <?php else: ?>
+                                            <i data-lucide="star" class="star-empty"></i>
+                                        <?php endif; 
+                                    endfor; 
+                                    ?>
+                                    <span class="rating-text"><?php echo number_format($hostRating['avg_rating'], 1); ?> (<?php echo $hostRating['total_ratings']; ?>)</span>
+                                </div>
+                                <?php endif; ?>
+                            </div>
+
+                            <?php if (!empty($evacueeHistory)): ?>
+                                <div class="shelter-feed">
+                                    <?php foreach ($evacueeHistory as $history): 
+                                        $ci = new DateTime($history['checked_in_at']);
+                                        $coStr = $history['checked_out_at'] ? (new DateTime($history['checked_out_at']))->format('M j, Y, h:i A') : '—';
+                                        
+                                        // Calculate duration if checked out
+                                        $durationStr = '';
+                                        if ($history['checked_out_at']) {
+                                            $co = new DateTime($history['checked_out_at']);
+                                            $diff = $ci->diff($co);
+                                            if ($diff->d > 0) $durationStr = $diff->d . 'd ' . $diff->h . 'h';
+                                            elseif ($diff->h > 0) $durationStr = $diff->h . 'h ' . $diff->i . 'm';
+                                            else $durationStr = $diff->i . 'm';
+                                        }
+                                        
+                                        $name = $history['first_name'] . ' ' . $history['last_name'];
+                                        $initials = strtoupper(substr($history['first_name'], 0, 1) . substr($history['last_name'], 0, 1));
+                                    ?>
+                                    <div class="list-item history-card" style="display: flex; flex-direction: column; gap: 12px; position: relative;">
+                                        
+                                        <!-- Top Row: User Info & Status -->
+                                        <div style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%;">
+                                            <div class="user-row" style="margin-bottom: 0;">
+                                                <div class="avatar" style="background: #f1f5f9; color: #475569;">
+                                                    <?php echo $initials; ?>
+                                                </div>
+                                                <div class="u-info">
+                                                    <h4 style="margin: 0; font-size: 0.95rem; color: #0f172a;"><?php echo htmlspecialchars($name); ?></h4>
+                                                    <p class="evacuee-meta" style="margin: 4px 0 0; font-size: 0.75rem; color: #64748b; display: flex; gap: 10px; align-items: center;">
+                                                        <span><i data-lucide="users" style="width:12px; height:12px; vertical-align: -2px;"></i> <?php echo $history['group_size']; ?></span>
+                                                        <span><i data-lucide="phone" style="width:12px; height:12px; vertical-align: -2px;"></i> <?php echo htmlspecialchars($history['phone_number'] ?? 'N/A'); ?></span>
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div style="text-align: right;">
+                                                <span class="status-pill <?php echo $history['status']; ?>" style="font-size: 0.65rem; padding: 4px 10px; border-radius: 99px;">
+                                                    <?php echo strtoupper(str_replace('_', ' ', $history['status'])); ?>
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <!-- Middle Row: Timeline -->
+                                        <div style="background: #f8fafc; border-radius: 8px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #e2e8f0;">
+                                            <div style="flex: 1;">
+                                                <div style="font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin-bottom: 2px;">Check-In</div>
+                                                <div style="font-size: 0.8rem; font-weight: 600; color: #1e293b;"><?php echo $ci->format('M j, Y'); ?></div>
+                                                <div style="font-size: 0.75rem; color: #64748b;"><?php echo $ci->format('h:i A'); ?></div>
+                                            </div>
+                                            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0 15px;">
+                                                <div style="height: 1px; background: #cbd5e1; width: 40px; position: relative; display: flex; align-items: center; justify-content: center;">
+                                                    <i data-lucide="arrow-right" style="width:14px; height:14px; color: #94a3b8; background: #f8fafc; padding: 0 4px;"></i>
+                                                </div>
+                                                <?php if ($durationStr): ?>
+                                                    <span style="font-size: 0.65rem; font-weight: 700; color: #2563eb; background: #eff6ff; padding: 2px 8px; border-radius: 6px; margin-top: 6px;">
+                                                        <?php echo $durationStr; ?>
+                                                    </span>
+                                                <?php endif; ?>
+                                            </div>
+                                            <div style="flex: 1; text-align: right;">
+                                                <div style="font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin-bottom: 2px;">Check-Out</div>
+                                                <div style="font-size: 0.8rem; font-weight: 600; color: #1e293b;">
+                                                    <?php echo $history['checked_out_at'] ? (new DateTime($history['checked_out_at']))->format('M j, Y') : '—'; ?>
+                                                </div>
+                                                <div style="font-size: 0.75rem; color: #64748b;">
+                                                    <?php echo $history['checked_out_at'] ? (new DateTime($history['checked_out_at']))->format('h:i A') : ''; ?>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Bottom Row: Rating -->
+                                        <div style="display: flex; align-items: center; gap: 12px; padding-top: 4px; border-top: 1px dashed #e2e8f0; margin-top: 2px;">
+                                            <div style="font-size: 0.75rem; font-weight: 700; color: #64748b;">Rating:</div>
+                                            <?php if ($history['rating']): ?>
+                                                <div class="stars-display" style="gap: 4px;">
+                                                    <?php for ($i=1; $i<=5; $i++): 
+                                                        if ($i <= $history['rating']): ?>
+                                                            <i data-lucide="star" style="width: 16px; height: 16px; color: #f59e0b; fill: #f59e0b;"></i>
+                                                        <?php else: ?>
+                                                            <i data-lucide="star" style="width: 16px; height: 16px; color: #e2e8f0;"></i>
+                                                        <?php endif; 
+                                                    endfor; ?>
+                                                </div>
+                                                <?php if (!empty($history['review_text'])): ?>
+                                                    <div style="flex: 1; font-size: 0.8rem; color: #475569; font-style: italic; background: #fffbeb; padding: 6px 12px; border-radius: 6px; border: 1px solid #fef3c7; border-left: 3px solid #f59e0b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="<?php echo htmlspecialchars($history['review_text']); ?>">
+                                                        "<?php echo htmlspecialchars($history['review_text']); ?>"
+                                                    </div>
+                                                <?php endif; ?>
+                                            <?php else: ?>
+                                                <span style="font-size: 0.75rem; color: #94a3b8; font-style: italic;">No rating provided</span>
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
+                                    <?php endforeach; ?>
+                                </div>
+                            <?php else: ?>
+                                <div class="history-empty">
+                                    <i data-lucide="history"></i>
+                                    <h4>No History Yet</h4>
+                                    <p>Past evacuees will appear here once they check out.</p>
+                                </div>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </section>

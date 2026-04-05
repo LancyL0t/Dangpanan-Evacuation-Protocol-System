@@ -87,9 +87,9 @@ $requestId  = isset($_GET['request_id']) ? (int) $_GET['request_id'] : 0;
                     <i data-lucide="map"></i>
                     Open in Google Maps
                 </a>
-                <a id="btnCallShelter" href="#" class="btn-hud-call" style="display:none;">
-                    <i data-lucide="phone"></i>
-                    Call Shelter
+                <a id="btnChatShelter" href="#" class="btn-hud-call" style="display:none;">
+                    <i data-lucide="message-circle"></i>
+                    Chat Shelter
                 </a>
             </div>
         </div>

@@ -13,8 +13,19 @@
     <title>DANGPANAN | Admin Dashboard</title>
     <link rel="stylesheet" href="assets/css/admin.css">
     <link rel="stylesheet" href="assets/css/nav.css">
+    <!-- Admin Dependencies -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <link href="https://cdn.datatables.net/v/dt/dt-2.0.2/datatables.min.css" rel="stylesheet">
+    <script src="https://cdn.datatables.net/v/dt/dt-2.0.2/datatables.min.js"></script>
+
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="assets/js/portal.js" defer></script>
+    
+    <!-- PHP Data Injection for Chart.js -->
+    <script>
+        window.SHELTER_CAPACITY_DATA = <?php echo json_encode($shelterBars); ?>;
+    </script>
 </head>
 <body class="light-portal">
     <?php require 'views/partials/nav_portal.php'; ?>
@@ -35,103 +46,117 @@
         </div>
     </div>
 
-    <main class="portal-container">
+    <div class="admin-wrapper">
+        <aside class="admin-sidebar">
+            <div class="admin-sidebar-header">
+                <h2>Command Center</h2>
+            </div>
+            <div class="tabs-nav sidebar-nav">
+                <button class="tab-btn active" data-tab="overview">
+                    <i data-lucide="layout-dashboard"></i> Overview
+                </button>
+                <button class="tab-btn" data-tab="users">
+                    <i data-lucide="users"></i> Users
+                    <span class="tab-badge"><?= $totalUsers ?></span>
+                </button>
+                <button class="tab-btn" data-tab="shelters">
+                    <i data-lucide="home"></i> Shelters
+                </button>
+                <button class="tab-btn" data-tab="alerts">
+                    <i data-lucide="bell"></i> Alerts
+                    <?php if ($totalAlerts): ?>
+                        <span class="tab-badge"><?= $totalAlerts ?></span>
+                    <?php endif; ?>
+                </button>
+                <button class="tab-btn" data-tab="verification">
+                    <i data-lucide="shield"></i> Verification
+                    <span class="tab-badge amber" id="verifyBadge" style="display:none;"></span>
+                </button>
+                <button class="tab-btn" data-tab="requests">
+                    <i data-lucide="file-text"></i> Requests
+                    <?php if ($pendingCount): ?>
+                        <span class="tab-badge amber"><?= $pendingCount ?></span>
+                    <?php endif; ?>
+                </button>
+                <button class="tab-btn" data-tab="occupants">
+                    <i data-lucide="users-round"></i> Occupants
+                    <?php if ($totalOccupants): ?>
+                        <span class="tab-badge blue"><?= $totalOccupants ?></span>
+                    <?php endif; ?>
+                </button>
+                <button class="tab-btn" data-tab="logs">
+                    <i data-lucide="scroll-text"></i> Activity Log
+                </button>
+            </div>
+        </aside>
 
-        <!-- ── Header ── -->
-        <header class="portal-header">
-            <div>
-                <h1 class="page-title">Admin Dashboard</h1>
-                <p class="user-id">DANGPANAN System Administration</p>
-            </div>
-            <div class="header-exports">
-                <a href="index.php?route=admin-export&export_type=users" class="export-btn">
-                    <i data-lucide="download"></i> Export Users
-                </a>
-                <a href="index.php?route=admin-export&export_type=shelters" class="export-btn">
-                    <i data-lucide="download"></i> Shelters
-                </a>
-                <a href="index.php?route=admin-export&export_type=requests" class="export-btn">
-                    <i data-lucide="download"></i> Requests
-                </a>
-            </div>
-        </header>
+        <main class="portal-container admin-main">
 
-        <!-- ── Stats Strip ── -->
-        <div class="stats-strip">
-            <div class="stat-card">
-                <div class="stat-icon stat-icon-red"><i data-lucide="users"></i></div>
+            <!-- ── Header ── -->
+            <header class="portal-header">
                 <div>
-                    <div class="stat-val"><?= $totalUsers ?></div>
-                    <div class="stat-lbl">Total Users</div>
+                    <h1 class="page-title">Admin Dashboard</h1>
+                    <p class="user-id">DANGPANAN System Administration</p>
                 </div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon stat-icon-green"><i data-lucide="home"></i></div>
-                <div>
-                    <div class="stat-val"><?= $shelterStats['active_shelters'] ?></div>
-                    <div class="stat-lbl">Active Shelters</div>
+                <div class="header-exports">
+                    <a href="index.php?route=admin-export&export_type=users" class="export-btn">
+                        <i data-lucide="download"></i> Export Users
+                    </a>
+                    <a href="index.php?route=admin-export&export_type=shelters" class="export-btn">
+                        <i data-lucide="download"></i> Shelters
+                    </a>
+                    <a href="index.php?route=admin-export&export_type=requests" class="export-btn">
+                        <i data-lucide="download"></i> Requests
+                    </a>
+                    <a href="index.php?route=system_summary" target="_blank" class="export-btn" style="background: var(--primary); color: #fff; border: none;">
+                        <i data-lucide="file-text"></i> System Summary (PDF)
+                    </a>
                 </div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon stat-icon-amber"><i data-lucide="clock"></i></div>
-                <div>
-                    <div class="stat-val"><?= $pendingCount ?></div>
-                    <div class="stat-lbl">Pending Requests</div>
-                </div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon stat-icon-blue"><i data-lucide="users-round"></i></div>
-                <div>
-                    <div class="stat-val"><?= $totalOccupants ?></div>
-                    <div class="stat-lbl">Current Occupants</div>
-                </div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon stat-icon-red"><i data-lucide="bell"></i></div>
-                <div>
-                    <div class="stat-val"><?= $totalAlerts ?></div>
-                    <div class="stat-lbl">Active Alerts</div>
-                </div>
-            </div>
-        </div>
+            </header>
 
-        <!-- ── Tab Navigation ── -->
-        <div class="tabs-nav">
-            <button class="tab-btn active" data-tab="overview">
-                <i data-lucide="layout-dashboard"></i> Overview
-            </button>
-            <button class="tab-btn" data-tab="users">
-                <i data-lucide="users"></i> Users
-                <span class="tab-badge"><?= $totalUsers ?></span>
-            </button>
-            <button class="tab-btn" data-tab="shelters">
-                <i data-lucide="home"></i> Shelters
-            </button>
-            <button class="tab-btn" data-tab="alerts">
-                <i data-lucide="bell"></i> Alerts
-                <?php if ($totalAlerts): ?>
-                    <span class="tab-badge"><?= $totalAlerts ?></span>
-                <?php endif; ?>
-            </button>
-            <button class="tab-btn" data-tab="requests">
-                <i data-lucide="file-text"></i> Requests
-                <?php if ($pendingCount): ?>
-                    <span class="tab-badge amber"><?= $pendingCount ?></span>
-                <?php endif; ?>
-            </button>
-            <button class="tab-btn" data-tab="occupants">
-                <i data-lucide="users-round"></i> Occupants
-                <?php if ($totalOccupants): ?>
-                    <span class="tab-badge blue"><?= $totalOccupants ?></span>
-                <?php endif; ?>
-            </button>
-            <button class="tab-btn" data-tab="logs">
-                <i data-lucide="scroll-text"></i> Activity Log
-            </button>
-        </div>
+
 
         <!-- ══ TAB: OVERVIEW ══ -->
         <div id="overview-tab" class="tab-content active">
+            <!-- Stats Strip (Now inside Overview) -->
+            <div class="stats-strip" style="margin-bottom: 2rem;">
+                <div class="stat-card">
+                    <div class="stat-icon stat-icon-red"><i data-lucide="users"></i></div>
+                    <div>
+                        <div class="stat-val"><?= $totalUsers ?></div>
+                        <div class="stat-lbl">Total Users</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon stat-icon-green"><i data-lucide="home"></i></div>
+                    <div>
+                        <div class="stat-val"><?= $shelterStats['active_shelters'] ?></div>
+                        <div class="stat-lbl">Active Shelters</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon stat-icon-amber"><i data-lucide="clock"></i></div>
+                    <div>
+                        <div class="stat-val"><?= $pendingCount ?></div>
+                        <div class="stat-lbl">Pending Requests</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon stat-icon-blue"><i data-lucide="users-round"></i></div>
+                    <div>
+                        <div class="stat-val"><?= $totalOccupants ?></div>
+                        <div class="stat-lbl">Current Occupants</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon stat-icon-red"><i data-lucide="bell"></i></div>
+                    <div>
+                        <div class="stat-val"><?= $totalAlerts ?></div>
+                        <div class="stat-lbl">Active Alerts</div>
+                    </div>
+                </div>
+            </div>
+
             <div class="panel">
                 <h3 class="panel-section-title">System Overview</h3>
                 <div class="overview-grid">
@@ -161,24 +186,35 @@
                     </div>
                 </div>
 
-                <!-- Shelter capacity bars -->
-                <h4 class="section-label">Shelter Capacity</h4>
-                <?php
-                // $shelterBars provided by AlertController::adminDashboard()
-                foreach ($shelterBars as $sb):
-                    $pct      = $sb['max_capacity'] > 0 ? round($sb['current_capacity'] / $sb['max_capacity'] * 100) : 0;
-                    $barColor = $pct >= 90 ? '#ef4444' : ($pct >= 60 ? '#f59e0b' : '#10b981');
-                ?>
-                <div class="shelter-bar-row">
-                    <div class="shelter-bar-meta">
-                        <span class="shelter-bar-name"><?= htmlspecialchars($sb['shelter_name']) ?></span>
-                        <span class="shelter-bar-count"><?= $sb['current_capacity'] ?>/<?= $sb['max_capacity'] ?></span>
+                <div class="overview-layout" style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; margin-top: 2rem;">
+                    <!-- Left Column: Charts -->
+                    <div class="charts-section">
+                        <div class="charts-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                            <div class="chart-container" style="background: var(--surface-alt); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1.5rem; min-height: 320px; position: relative;">
+                                <h4 class="section-label" style="margin-bottom: 1rem;">Capacity Allocation</h4>
+                                <div style="position: relative; height: 230px; width: 100%;">
+                                    <canvas id="capacityDonutChart"></canvas>
+                                </div>
+                            </div>
+                            <div class="chart-container" style="background: var(--surface-alt); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1.5rem; min-height: 320px; position: relative;">
+                                <h4 class="section-label" style="margin-bottom: 1rem;">Top Active Shelters</h4>
+                                <div style="position: relative; height: 230px; width: 100%;">
+                                    <canvas id="topSheltersBarChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="cap-bar">
-                        <div class="cap-fill" style="width:<?= $pct ?>%;background:<?= $barColor ?>;"></div>
+
+                    <!-- Right Column: Live Ticker -->
+                    <div class="ticker-section" style="background: var(--surface-alt); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1.5rem; display: flex; flex-direction: column; overflow: hidden; height: 350px;">
+                        <h3 class="panel-section-title" style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">
+                            <i data-lucide="radio" style="color: var(--primary);"></i> Live Activity Feed
+                        </h3>
+                        <div id="liveActivityTicker" class="ticker-container" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 0.75rem; padding-right: 0.5rem;">
+                            <p class="text-muted" style="font-size: 0.85rem;">Listening for events...</p>
+                        </div>
                     </div>
                 </div>
-                <?php endforeach; ?>
             </div>
         </div>
 
@@ -188,7 +224,9 @@
                 <div class="panel-head">
                     <h3>User Management</h3>
                     <div class="head-actions">
-                        <input type="search" class="table-search" placeholder="Search users..." id="userSearch">
+                        <a href="index.php?route=report_users" target="_blank" class="secondary-btn" style="margin-right: 0.5rem; text-decoration:none;">
+                            <i data-lucide="file-down"></i> Export PDF
+                        </a>
                         <button class="primary-btn" id="newUserBtn">
                             <i data-lucide="plus-circle"></i> New User
                         </button>
@@ -216,14 +254,15 @@
                 <div class="panel-head">
                     <h3>Shelter Management</h3>
                     <div class="head-actions">
-                        <input type="search" class="table-search" placeholder="Search shelters…" id="shelterSearch"
-                               oninput="filterTable('sheltersTable',this.value)">
                         <select id="shelterStatusFilter" class="filter-select"
                                 onchange="filterTable('sheltersTable',document.getElementById('shelterSearch').value)">
                             <option value="">All Status</option>
                             <option value="Active">Active</option>
                             <option value="Inactive">Inactive</option>
                         </select>
+                        <a href="index.php?route=report_shelters" target="_blank" class="secondary-btn" style="text-decoration:none;">
+                            <i data-lucide="file-down"></i> Export PDF
+                        </a>
                         <button class="primary-btn" id="newShelterBtn">
                             <i data-lucide="plus-circle"></i> New Shelter
                         </button>
@@ -251,8 +290,9 @@
                 <div class="panel-head">
                     <h3>Alert Management</h3>
                     <div class="head-actions">
-                        <input type="search" class="table-search" placeholder="Search alerts…" id="alertSearch"
-                               oninput="filterTable('alertsTable',this.value)">
+                        <a href="index.php?route=report_alerts" target="_blank" class="secondary-btn" style="margin-right: 0.5rem; text-decoration:none;">
+                            <i data-lucide="file-down"></i> Export PDF
+                        </a>
                         <button class="primary-btn" id="newAlertBtn">
                             <i data-lucide="plus-circle"></i> New Alert
                         </button>
@@ -280,8 +320,9 @@
                 <div class="panel-head">
                     <h3>All Shelter Requests</h3>
                     <div class="head-actions">
-                        <input type="search" class="table-search" placeholder="Search requests…" id="reqSearch"
-                               oninput="filterTable('requestsTable',this.value)">
+                        <a href="index.php?route=report_requests" target="_blank" class="secondary-btn" style="margin-right: 0.5rem; text-decoration:none;">
+                            <i data-lucide="file-down"></i> Export PDF
+                        </a>
                         <select id="reqStatusFilter" class="filter-select"
                                 onchange="filterTable('requestsTable',document.getElementById('reqSearch').value)">
                             <option value="">All Status</option>
@@ -309,26 +350,51 @@
             </div>
         </div>
 
+        <!-- ══ TAB: VERIFICATION ══ -->
+        <div id="verification-tab" class="tab-content">
+            <div class="panel">
+                <div class="panel-head">
+                    <h3>Host Verification Queue</h3>
+                    <div class="head-actions">
+                        <a href="index.php?route=report_verification" target="_blank" class="secondary-btn" style="text-decoration:none;">
+                            <i data-lucide="file-down"></i> Export PDF
+                        </a>
+                    </div>
+                </div>
+                <div class="table-wrap">
+                    <table id="verificationTable">
+                        <thead>
+                            <tr>
+                                <th>Name</th><th>Email</th><th>Phone</th><th>ID Doc</th><th>Created</th><th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td colspan="6" class="td-empty">Loading…</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
         <!-- ══ TAB: OCCUPANTS ══ -->
         <div id="occupants-tab" class="tab-content">
             <div class="panel">
                 <div class="panel-head">
-                    <h3>Current Occupants (System-Wide)</h3>
-                    <input type="search" class="table-search" placeholder="Search occupants…" id="occSearch"
-                           oninput="filterTable('occupantsTable',this.value)">
+                    <h3>Occupant Management</h3>
+                    <div class="head-actions">
+                        <a href="index.php?route=report_occupants" target="_blank" class="secondary-btn" style="margin-right: 0.5rem; text-decoration:none;">
+                            <i data-lucide="file-down"></i> Export PDF
+                        </a>
+                        <button class="secondary-btn" id="syncCapacitiesBtn" title="Repair capacity discrepancies">
+                            <i data-lucide="refresh-cw"></i> Sync Database
+                        </button>
+                    </div>
                 </div>
-                <div class="table-wrap">
-                    <table id="occupantsTable">
-                        <thead>
-                            <tr>
-                                <th>ID</th><th>Name</th><th>Email</th>
-                                <th>Shelter</th><th>Group Size</th><th>Checked In</th><th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr><td colspan="7" class="td-empty">Loading…</td></tr>
-                        </tbody>
-                    </table>
+                <div id="occupantsGroupContainer" class="shelter-groups-wrapper">
+                    <div class="state-empty" style="padding: 4rem 1rem;">
+                        <i data-lucide="loader-2" class="spin" style="width: 48px; height: 48px; color: var(--primary); margin-bottom: 1rem;"></i>
+                        <p>Loading occupancy data...</p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -338,16 +404,29 @@
             <div class="panel">
                 <div class="panel-head">
                     <h3>Activity Log</h3>
-                    <input type="search" class="table-search" placeholder="Search logs…" id="logSearch"
-                           oninput="filterLogList(this.value)">
+                    <div class="head-actions">
+                        <a href="index.php?route=report_logs" target="_blank" class="secondary-btn" style="text-decoration:none;">
+                            <i data-lucide="file-down"></i> Export PDF
+                        </a>
+                    </div>
                 </div>
-                <div id="logList" class="log-list">
-                    <p class="state-empty">Loading…</p>
+                <div class="table-wrap">
+                    <table id="logsTable">
+                        <thead>
+                            <tr>
+                                <th>Time</th><th>User</th><th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td colspan="3" class="td-empty">Loading…</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
 
     </main>
+    </div>
 
     <!-- ══ USER MODAL ══ -->
     <div id="userModal" class="modal">
